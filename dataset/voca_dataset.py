@@ -119,7 +119,6 @@ def compute_window_array_idx(data2array, window_size):
 
 class DataHandler:
     def __init__(self, config):
-        self.config = config
         subject_for_training = config['subject_for_training'].split(" ")
         sequence_for_training = config['sequence_for_training'].split(" ")
         subject_for_validation = config['subject_for_validation'].split(" ")
@@ -128,6 +127,7 @@ class DataHandler:
         sequence_for_testing = config['sequence_for_testing'].split(" ")
         self.num_consecutive_frames = config['num_consecutive_frames']
         self.audio_path = './training_data/processed_audio_deepspeech.pkl'
+
         print("Loading data")
         self._load_data(config)
         print("Initialize data splits")
@@ -135,9 +135,6 @@ class DataHandler:
                                sequence_for_validation, subject_for_testing, sequence_for_testing)
         print("Initialize training, validation, and test indices")
         self._init_indices()
-
-    def __len__(self):
-        return len(self.training_indices)
 
     def get_data_splits(self):
         return self.training_indices, self.validation_indices, self.testing_indices
@@ -169,6 +166,42 @@ class DataHandler:
         else:
             return -1
 
+    def _init_indices(self):
+        def get_indices(subjects, sequences):
+            indices = []
+            for subj in subjects:
+                if (subj not in self.raw_audio) or (subj not in self.data2array_verts):
+                    if subj != '':
+                        import pdb; pdb.set_trace()
+                        print('subject missing %s' % subj)
+                    continue
+
+                for seq in sequences:
+                    if (seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
+                        print('sequence data missing %s - %s' % (subj, seq))
+                        continue
+
+                    num_data_frames = max(self.data2array_verts[subj][seq].keys())+1
+                    if self.processed_audio is not None:
+                        num_audio_frames = len(self.processed_audio[subj][seq]['audio'])
+                    else:
+                        num_audio_frames = num_data_frames
+
+                    try:
+                        for i in range(min(num_data_frames, num_audio_frames)):
+                            indexed_frame = self.data2array_verts[subj][seq][i]
+                            indices.append(indexed_frame)
+                    except KeyError:
+                        print('Key error with subject: %s and sequence: %s" % (subj, seq)')
+            return indices
+
+        self.training_indices = get_indices(self.training_subjects, self.training_sequences)
+        self.validation_indices = get_indices(self.validation_subjects, self.validation_sequences)
+        self.testing_indices = get_indices(self.testing_subjects, self.testing_sequences)
+
+        self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
+        self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
+
     def _slice_data(self, indices):
         if self.num_consecutive_frames == 1:
             return self._slice_data_helper(indices)
@@ -197,56 +230,7 @@ class DataHandler:
         if self.processed_audio is not None:
             processed_audio = np.stack(processed_audio)
             assert face_vertices.shape[0] == processed_audio.shape[0]
-        return torch.from_numpy(processed_audio).type(torch.FloatTensor), \
-               torch.from_numpy(face_vertices).type(torch.FloatTensor), \
-               torch.from_numpy(face_templates).type(torch.FloatTensor), \
-               torch.from_numpy(subject_idx).type(torch.FloatTensor)
-
-    def _get_random_sequences(self, subjects, sequences, num_sequences):
-        if num_sequences == 0:
-            return
-
-        sub_seq_list = []
-        for subj in subjects:
-            if subj not in self.data2array_verts:
-                continue
-            for seq in sequences:
-                if (seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
-                    continue
-                sub_seq_list.append((subj, seq))
-        st = random.getstate()
-        random.seed(777)
-        random.shuffle(sub_seq_list)
-        random.setstate(st)
-
-        if num_sequences > 0 and num_sequences < len(sub_seq_list):
-            sub_seq_list = sub_seq_list[:num_sequences]
-        return self._get_subject_sequences(sub_seq_list)
-
-    def _get_subject_sequences(self, subject_sequence_list):
-        face_vertices = []
-        face_templates = []
-        subject_idx = []
-
-        raw_audio = []
-        processed_audio = []
-        for subj, seq in subject_sequence_list:
-            frame_array_indices = []
-            try:
-                for frame, array_idx in self.data2array_verts[subj][seq].iteritems():
-                    frame_array_indices.append(array_idx)
-            except KeyError:
-                continue
-            face_vertices.append(self.face_vert_mmap[frame_array_indices])
-            face_templates.append(self.templates_data[subj])
-            subject_idx.append(self.convert_training_subj2idx(subj))
-            raw_audio.append(self.raw_audio[subj][seq])
-            processed_seq_audio = []
-            if self.processed_audio is not None:
-                for frame, array_idx in self.data2array_verts[subj][seq].iteritems():
-                    processed_seq_audio.append(self.processed_audio[subj][seq]['audio'][frame])
-            processed_audio.append(processed_seq_audio)
-        return raw_audio, processed_audio, face_vertices, face_templates, subject_idx
+        return processed_audio, face_vertices, face_templates, subject_idx
 
     def _load_data(self, config):
         face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
@@ -265,12 +249,7 @@ class DataHandler:
         self.raw_audio = pickle.load(open(raw_audio_path, 'rb'), encoding='latin1')
 
         print("Process audio")
-        if os.path.exists(processed_audio_path):
-            self.processed_audio = pickle.load(open(processed_audio_path, 'rb'), encoding='latin1')
-        else:
-            self.processed_audio =  self._process_audio(self.raw_audio)
-            if processed_audio_path != '':
-                pickle.dump(self.processed_audio, open(processed_audio_path, 'wb'))
+        self.processed_audio = pickle.load(open(processed_audio_path, 'rb'), encoding='latin1')
 
         print("Loading index maps")
         self.data2array_verts = pickle.load(open(data2array_verts_path, 'rb'))
@@ -309,40 +288,48 @@ class DataHandler:
         if len(all_instances) != len(set(all_instances)):
             raise ValueError('User-specified data split not disjoint')
 
-    def _init_indices(self):
-        def get_indices(subjects, sequences):
-            indices = []
-            for subj in subjects:
-                if (subj not in self.raw_audio) or (subj not in self.data2array_verts):
-                    if subj != '':
-                        import pdb;
-                        pdb.set_trace()
-                        print(f"subject missing {subj}")
+    def _get_random_sequences(self, subjects, sequences, num_sequences):
+        if num_sequences == 0:
+            return
+
+        sub_seq_list = []
+        for subj in subjects:
+            if subj not in self.data2array_verts:
+                continue
+            for seq in sequences:
+                if(seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
                     continue
+                sub_seq_list.append((subj, seq))
+        st = random.getstate()
+        random.seed(777)
+        random.shuffle(sub_seq_list)
+        random.setstate(st)
 
-                for seq in sequences:
-                    if (seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
-                        print(f"sequence data missing {subj} {seq}")
-                        continue
+        if num_sequences > 0 and num_sequences < len(sub_seq_list):
+            sub_seq_list = sub_seq_list[:num_sequences]
+        return self._get_subject_sequences(sub_seq_list)
 
-                    num_data_frames = max(self.data2array_verts[subj][seq].keys()) + 1
-                    if self.processed_audio is not None:
-                        num_audio_frames = len(self.processed_audio[subj][seq]['audio'])
-                    else:
-                        num_audio_frames = num_data_frames
+    def _get_subject_sequences(self, subject_sequence_list):
+        face_vertices = []
+        face_templates = []
+        subject_idx = []
 
-                    try:
-                        for i in range(min(num_data_frames, num_audio_frames)):
-                            indexed_frame = self.data2array_verts[subj][seq][i]
-                            indices.append(indexed_frame)
-                    except KeyError:
-                        print(f"Key error with subject:{subj} and sequence:{seq}")
-            return indices
-
-        self.training_indices = get_indices(self.training_subjects, self.training_sequences)
-        self.validation_indices = get_indices(self.validation_subjects, self.validation_sequences)
-        self.testing_indices = get_indices(self.testing_subjects, self.testing_sequences)
-
-        self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
-        self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
-
+        raw_audio = []
+        processed_audio = []
+        for subj, seq in subject_sequence_list:
+            frame_array_indices = []
+            try:
+                for frame, array_idx in self.data2array_verts[subj][seq].items():
+                    frame_array_indices.append(array_idx)
+            except KeyError:
+                continue
+            face_vertices.append(self.face_vert_mmap[frame_array_indices])
+            face_templates.append(self.templates_data[subj])
+            subject_idx.append(self.convert_training_subj2idx(subj))
+            raw_audio.append(self.raw_audio[subj][seq])
+            processed_seq_audio = []
+            if self.processed_audio is not None:
+                for frame, array_idx in self.data2array_verts[subj][seq].items():
+                    processed_seq_audio.append(self.processed_audio[subj][seq]['audio'][frame])
+            processed_audio.append(processed_seq_audio)
+        return raw_audio, processed_audio, face_vertices, face_templates, subject_idx
