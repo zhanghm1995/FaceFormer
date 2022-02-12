@@ -43,7 +43,7 @@ class Batcher(Dataset):
 
     def get_training_batch(self, batch_size):
         """
-        Get batch for training
+        Get batch for training, main interface function
         :param batch_size:
         :return:
         """
@@ -97,7 +97,7 @@ def invert_data2array(data2array):
     array2data = {}
     for sub in data2array.keys():
         for seq in data2array[sub].keys():
-            for frame, array_idx in data2array[sub][seq].iteritems():
+            for frame, array_idx in data2array[sub][seq].items():
                 array2data[array_idx] = (sub, seq, frame)
     return array2data
 
@@ -112,7 +112,7 @@ def compute_window_array_idx(data2array, window_size):
     array2window_ids = {}
     for sub in data2array.keys():
         for seq in data2array[sub].keys():
-            for frame, array_idx in data2array[sub][seq].iteritems():
+            for frame, array_idx in data2array[sub][seq].items():
                 window_frames = window_frame(frame, window_size)
                 array2window_ids[array_idx] = [data2array[sub][seq][id] for id in window_frames]
     return array2window_ids
@@ -259,13 +259,18 @@ class DataHandler:
         self.face_vert_mmap = np.load(face_verts_mmaps_path, mmap_mode='r')
 
         print("Loading templates")
-        self.templates_data = pickle.load(open(face_templates_path, 'rb'))
+        self.templates_data = pickle.load(open(face_templates_path, 'rb'), encoding='latin1')
 
         print("Loading raw audio")
-        self.raw_audio = pickle.load(open(raw_audio_path, 'rb'))
+        self.raw_audio = pickle.load(open(raw_audio_path, 'rb'), encoding='latin1')
 
         print("Process audio")
-        self.processed_audio = pickle.load(open(self.audio_path, 'rb'))
+        if os.path.exists(processed_audio_path):
+            self.processed_audio = pickle.load(open(processed_audio_path, 'rb'), encoding='latin1')
+        else:
+            self.processed_audio =  self._process_audio(self.raw_audio)
+            if processed_audio_path != '':
+                pickle.dump(self.processed_audio, open(processed_audio_path, 'wb'))
 
         print("Loading index maps")
         self.data2array_verts = pickle.load(open(data2array_verts_path, 'rb'))
@@ -318,7 +323,6 @@ class DataHandler:
                 for seq in sequences:
                     if (seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
                         print(f"sequence data missing {subj} {seq}")
-
                         continue
 
                     num_data_frames = max(self.data2array_verts[subj][seq].keys()) + 1
