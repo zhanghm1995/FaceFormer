@@ -8,6 +8,7 @@ Description: Test the VOCADataset class
 '''
 import os
 import shutil
+import numpy as np
 import configparser
 from dataset.voca_dataset import DataHandler, Batcher
 from config_parser import read_config, create_default_config
@@ -18,8 +19,29 @@ def test_voca_dataset(config):
 
     num_train_batches = batcher.get_num_batches(config['batch_size'])
 
-    processed_audio, face_vertices, face_templates, subject_idx = batcher.get_training_batch(config['batch_size'])
-    print(processed_audio.shape, face_vertices.shape, face_templates.shape, subject_idx.shape)
+    processed_audio, face_vertices, face_templates, subject_idx, seq_info = \
+        batcher.get_training_batch(config['batch_size'])
+
+    audio = processed_audio[0]['audio']
+    num_face_frames = face_vertices[0].shape[0]
+    print(audio.shape, num_face_frames, seq_info[0])
+    np.save(f"{num_face_frames}_{seq_info[0][0]}_{seq_info[0][1]}_audio.npy", audio)
+    
+
+def test_wav2vec2():
+    import torch
+    import torch.nn as nn
+    import torchaudio
+    import torchaudio.models.wav2vec2 as ta_wav2vec2
+
+    device = torch.device("cuda")
+
+    bundle = torchaudio.pipelines.WAV2VEC2_BASE
+    wav2vec2_model = bundle.get_model().to(device)
+    print(wav2vec2_model.__class__)
+    print("hhh")
+
+    waveform = torchaudio.functional.resample(waveform, sample_rate, bundle.sample_rate)
 
 
 def main():
@@ -66,3 +88,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # test_wav2vec2()
+

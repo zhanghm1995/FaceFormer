@@ -263,6 +263,7 @@ class DataHandler:
     def _slice_data_helper_v2(self, indices):
         batched_raw_audio, batched_face_vertices = [], []
         batched_face_template, batched_subject_idx = [], []
+        batched_seq_info = []
 
         sequence_length = 60 # 1s
 
@@ -287,8 +288,9 @@ class DataHandler:
             batched_face_template.append(curr_seq_face_template)
             batched_subject_idx.append(curr_subject_idx)
             batched_raw_audio.append(curr_raw_audio)
+            batched_seq_info.append(item)
         
-        return batched_raw_audio, batched_face_vertices, batched_face_template, batched_subject_idx
+        return batched_raw_audio, batched_face_vertices, batched_face_template, batched_subject_idx, batched_seq_info
         
 
     def _get_all_sequences_list(self):
