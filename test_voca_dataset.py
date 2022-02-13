@@ -119,8 +119,15 @@ def main():
     test_voca_dataset(config)
 
 
+def main2():
+    from omegaconf import OmegaConf
+
+    config = OmegaConf.load('./config/config.yaml')
+    test_voca_dataset(config)
+
+
 if __name__ == "__main__":
-    main()
+    main2()
 
     # test_wav2vec2()
 
