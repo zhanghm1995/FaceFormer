@@ -15,6 +15,15 @@ import numpy as np
 from torch.utils.data.dataset import Dataset
 
 
+def get_sub_list_randomly(input_list, sub_list_len):
+    assert sub_list_len <= len(input_list)
+    
+    len_diff = len(input_list) - sub_list_len
+    
+    start_idx = random.randint(0, len_diff)
+    return input_list[start_idx:start_idx+sub_list_len], start_idx
+
+
 class Batcher(Dataset):
     def __init__(self, data_handler):
         self.data_handler = data_handler
@@ -118,7 +127,7 @@ def compute_window_array_idx(data2array, window_size):
     return array2window_ids
 
 class DataHandler:
-    def __init__(self, config):
+    def __init__(self, config, for_faceformer=True):
         subject_for_training = config['subject_for_training'].split(" ")
         sequence_for_training = config['sequence_for_training'].split(" ")
         subject_for_validation = config['subject_for_validation'].split(" ")
@@ -133,13 +142,22 @@ class DataHandler:
         print("Initialize data splits")
         self._init_data_splits(subject_for_training, sequence_for_training, subject_for_validation,
                                sequence_for_validation, subject_for_testing, sequence_for_testing)
+        print("Initilize all sequences")
+        self._get_all_sequences_list()
         print("Initialize training, validation, and test indices")
-        self._init_indices()
+
+        self.for_faceformer = for_faceformer
+        if self.for_faceformer:
+            self._init_indices_v2()
+        else:
+            self._init_indices()
 
     def get_data_splits(self):
         return self.training_indices, self.validation_indices, self.testing_indices
 
     def slice_data(self, indices):
+        if self.for_faceformer:
+            return self._slice_data_helper_v2(indices)
         return self._slice_data(indices)
 
     def get_training_sequences(self, num_sequences):
@@ -202,6 +220,16 @@ class DataHandler:
         self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
         self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
 
+    def _init_indices_v2(self):
+        """Initialize the indices for FaceFormer training
+        """
+        self.training_indices = self.all_training_sequences
+        self.validation_indices = self.all_validation_sequences
+        self.testing_indices = self.all_testing_sequences
+
+        self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
+        self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
+
     def _slice_data(self, indices):
         if self.num_consecutive_frames == 1:
             return self._slice_data_helper(indices)
@@ -231,6 +259,58 @@ class DataHandler:
             processed_audio = np.stack(processed_audio)
             assert face_vertices.shape[0] == processed_audio.shape[0]
         return processed_audio, face_vertices, face_templates, subject_idx
+
+    def _slice_data_helper_v2(self, indices):
+        batched_raw_audio, batched_face_vertices = [], []
+        batched_face_template, batched_subject_idx = [], []
+
+        sequence_length = 60 # 1s
+
+        for item in indices:
+            subj, seq = item
+            
+            frame_array_indices = list(self.data2array_verts[subj][seq].values())
+
+            # frame_array_indices, start_idx = get_sub_list_randomly(
+            #     frame_array_indices, sequence_length)
+
+            curr_seq_face_vertices = self.face_vert_mmap[frame_array_indices]
+            curr_seq_face_template = self.templates_data[subj]
+            curr_subject_idx = self.convert_training_subj2idx(subj)
+
+            curr_raw_audio = self.raw_audio[subj][seq]
+
+            # audio_start_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + 1)) - 1
+            # curr_raw_audio['audio'] = curr_raw_audio['audio'][audio_start_idx]
+
+            batched_face_vertices.append(curr_seq_face_vertices)
+            batched_face_template.append(curr_seq_face_template)
+            batched_subject_idx.append(curr_subject_idx)
+            batched_raw_audio.append(curr_raw_audio)
+        
+        return batched_raw_audio, batched_face_vertices, batched_face_template, batched_subject_idx
+        
+
+    def _get_all_sequences_list(self):
+        """Get all training, validation and testing sequences
+        """
+        def get_sequences_info(subjects_list, sequences_list):
+            sub_seq_list = []
+            for subj in subjects_list:
+                if subj not in self.data2array_verts:
+                    continue
+                for seq in sequences_list:
+                    if(seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
+                        continue
+                    sub_seq_list.append((subj, seq))
+            return sub_seq_list
+        
+        self.all_training_sequences = get_sequences_info(
+            self.training_subjects, self.training_sequences)
+        self.all_validation_sequences = get_sequences_info(
+            self.validation_subjects, self.validation_sequences)
+        self.all_testing_sequences = get_sequences_info(
+            self.testing_subjects, self.testing_sequences)
 
     def _load_data(self, config):
         face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
