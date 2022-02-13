@@ -28,6 +28,17 @@ def one_hot(x):
     condition = torch.zeros(x.shape[0], x.shape[1], 8).scatter_(2, x.type(torch.LongTensor), 1)
     return condition
 
+def _prepare_data(batch_data_dict):
+        batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
+
+        #======= Prepare the GT face motion ==========#
+        batch_data_dict['target_face_motion'] = \
+            batch_data_dict['face_vertices'] - np.expand_dims(batch_data_dict['face_template'], axis=1)
+
+        #======== Prepare the subject idx ===========#
+        subject_idx = np.expand_dims(np.stack(batch_data_dict['subject_idx']), -1)
+        batch_data_dict['subject_idx'] = one_hot(torch.from_numpy(subject_idx.repeat(seq_len, axis=-1))).to(torch.float32)
+
 
 def test_voca_dataset(config):
     data_handler = DataHandler(config)
@@ -35,8 +46,14 @@ def test_voca_dataset(config):
 
     batch_data_dict = batcher.get_training_batch(config['batch_size'])
 
+    _prepare_data(batch_data_dict)
+
     for key, value in batch_data_dict.items():
-        print(key, value.shape)
+        if key != "subject_idx":
+            batch_data_dict[key] = torch.from_numpy(value).type(torch.FloatTensor)
+
+    for key, value in batch_data_dict.items():
+        print(key, value.shape, value.dtype)
 
     # audio = processed_audio[0]['audio']
     # num_face_frames = face_vertices[0].shape[0]

@@ -94,20 +94,6 @@ class FaceFormerEncoder(nn.Module):
         return x
 
 
-def one_hot(x):
-    """Get the one hot matrix
-
-    Args:
-        x (Tensor): Bxseq_len dimension
-
-    Returns:
-        [type]: Bxseq_lenx8
-    """
-    x = x.unsqueeze(-1)
-    condition = torch.zeros(x.shape[0], x.shape[1], 8).scatter_(2, x.type(torch.LongTensor), 1)
-    return condition
-
-
 class FaceFormer(nn.Module):
     """Transformer implementation for FaceFormer framework"""
 
@@ -115,19 +101,19 @@ class FaceFormer(nn.Module):
         self.encoder = FaceFormerEncoder()
 
         self.decoder = Decoder(
-            n_trg_vocab=n_trg_vocab, n_position=n_position,
-            d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
-            n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
-            pad_idx=trg_pad_idx, dropout=dropout, scale_emb=scale_emb)
+            n_trg_vocab=60, n_position=200,
+            d_word_vec=512, d_model=512, d_inner=2048,
+            n_layers=6, n_head=8, d_k=64, d_v=64,
+            pad_idx=None, dropout=0.1, scale_emb=True)
 
-        self.motion_decoder = nn.Linear(d_model, final_channels, bias=False)
+        self.motion_decoder = nn.Linear(512, final_channels, bias=False)
 
+        motion_embedding_dim = config['motion_embedding_dim']
         num_training_subjects = config['num_training_subjects']
         style_embedding_dim = config['style_embedding_dim']
 
         self.motion_encoder = nn.Linear(final_channels, motion_embedding_dim)
         self.style_embedding = nn.Linear(num_training_subjects, style_embedding_dim, bias=False)
-
 
     def forward(self, audio_seq, face_seq, speaker_id):
         trg_mask = get_pad_mask(face_seq, self.trg_pad_idx) & get_subsequent_mask(face_seq)

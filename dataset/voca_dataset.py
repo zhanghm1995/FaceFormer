@@ -21,6 +21,7 @@ def get_sub_list_randomly(input_list, sub_list_len):
     len_diff = len(input_list) - sub_list_len
     
     start_idx = random.randint(0, len_diff)
+    start_idx = max(0, start_idx - 30)
     return input_list[start_idx:start_idx+sub_list_len], start_idx
 
 
@@ -296,7 +297,11 @@ class DataHandler:
         batch_data_dict['face_vertices'] = np.stack(batched_face_vertices)
         batch_data_dict['face_template'] = np.stack(batched_face_template)
         batch_data_dict['subject_idx'] = np.stack(batched_subject_idx)
-        batch_data_dict['raw_audio'] = np.stack(batched_raw_audio)
+        try:
+            batch_data_dict['raw_audio'] = np.stack(batched_raw_audio)
+        except:
+            all_shape = [s.shape for s in batched_raw_audio]
+            print(all_shape)
  
         return batch_data_dict
 
