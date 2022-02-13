@@ -84,8 +84,6 @@ class FaceFormerEncoder(nn.Module):
         x = nn.functional.interpolate(x, size=[output_seq_len])
         x = torch.permute(x, (0, 2, 1))
 
-        # x = self.interpolation(x)
-
         ## Forward the transformer encoder
         x = self.wav2vec2_model.encoder(x, lengths)
 
