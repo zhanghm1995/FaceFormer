@@ -20,7 +20,7 @@ def get_pad_mask(seq, pad_idx):
 
 def get_subsequent_mask(seq):
     ''' For masking out the subsequent info. '''
-    sz_b, len_s = seq.size()
+    sz_b, len_s, _ = seq.size()
     subsequent_mask = (1 - torch.triu(
         torch.ones((1, len_s, len_s), device=seq.device), diagonal=1)).bool()
     return subsequent_mask
@@ -97,8 +97,10 @@ class FaceFormerEncoder(nn.Module):
 class FaceFormer(nn.Module):
     """Transformer implementation for FaceFormer framework"""
 
-    def __init__(self, config, final_channels) -> None:
-        self.encoder = FaceFormerEncoder()
+    def __init__(self, config, final_channels, device):
+        super().__init__()
+        
+        self.encoder = FaceFormerEncoder(device)
 
         self.decoder = Decoder(
             n_trg_vocab=60, n_position=200,
@@ -109,14 +111,24 @@ class FaceFormer(nn.Module):
         self.motion_decoder = nn.Linear(512, final_channels, bias=False)
 
         motion_embedding_dim = config['motion_embedding_dim']
-        num_training_subjects = config['num_training_subjects']
+        num_training_subjects = config['dataset']['num_training_subjects']
         style_embedding_dim = config['style_embedding_dim']
 
         self.motion_encoder = nn.Linear(final_channels, motion_embedding_dim)
         self.style_embedding = nn.Linear(num_training_subjects, style_embedding_dim, bias=False)
 
-    def forward(self, audio_seq, face_seq, speaker_id):
-        trg_mask = get_pad_mask(face_seq, self.trg_pad_idx) & get_subsequent_mask(face_seq)
+    def forward(self, data_dict):
+        audio_seq = data_dict['raw_audio']
+        audio_seq = torchaudio.functional.resample(audio_seq, 22000, 16000)
+
+        face_seq = data_dict['target_face_motion']
+        batch_size, seq_len = face_seq.shape[:2]
+
+        face_seq = torch.reshape(face_seq, (batch_size, seq_len, -1))
+
+        speaker_id = data_dict['subject_idx']
+
+        trg_mask = get_subsequent_mask(face_seq)
 
         audio_seq = {"waveforms": audio_seq}
 
@@ -125,7 +137,7 @@ class FaceFormer(nn.Module):
         ## decoder process
         face_embed = self.motion_encoder(face_seq) + self.style_embedding(speaker_id)
         
-        dec_output = self.decoder(face_embed, trg_mask, enc_output)
+        dec_output = self.decoder(face_embed, trg_mask, enc_output, src_mask=None)
 
         seq_output = self.motion_decoder(dec_output)
 

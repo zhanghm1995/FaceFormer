@@ -56,7 +56,7 @@ class Decoder(nn.Module):
     ''' A decoder model with self attention mechanism. '''
 
     def __init__(
-            self, d_word_vec, n_layers, n_head, d_k, d_v,
+            self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
             d_model, d_inner, pad_idx, n_position=200, dropout=0.1, scale_emb=False):
 
         super().__init__()
@@ -103,10 +103,11 @@ class Decoder(nn.Module):
         dec_slf_attn_list, dec_enc_attn_list = [], []
 
         # -- Forward
-        dec_output = self.trg_word_emb(trg_seq)
+        # dec_output = self.trg_word_emb(trg_seq)
+        dec_output = trg_seq
         if self.scale_emb:
             dec_output *= self.d_model ** 0.5
-        # dec_output = self.dropout(self.position_enc(dec_output))
+        dec_output = self.dropout(self.position_enc(dec_output))
         dec_output = self.layer_norm(dec_output)
 
         for dec_layer in self.layer_stack:
