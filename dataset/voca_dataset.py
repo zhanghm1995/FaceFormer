@@ -280,17 +280,18 @@ class DataHandler:
             curr_seq_face_template = self.templates_data[subj]
             curr_subject_idx = self.convert_training_subj2idx(subj)
 
-            curr_raw_audio = self.raw_audio[subj][seq]
+            audio_start_idx = round(22000 / 60.0 * (start_idx + 1)) - 1
+            audio_end_idx = round(22000 / 60.0 * (start_idx + sequence_length + 1)) - 1
 
-            audio_start_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + 1)) - 1
-            audio_end_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + sequence_length + 1)) - 1
+            curr_raw_audio = self.raw_audio[subj][seq]['audio'][audio_start_idx:audio_end_idx]
 
-            curr_raw_audio['audio'] = curr_raw_audio['audio'][audio_start_idx:audio_end_idx]
+            if curr_raw_audio.shape[0] != 22000:
+                print("====", subj, seq, audio_start_idx, audio_end_idx, self.raw_audio[subj][seq]['audio'].shape)
 
             batched_face_vertices.append(curr_seq_face_vertices)
             batched_face_template.append(curr_seq_face_template)
             batched_subject_idx.append(curr_subject_idx)
-            batched_raw_audio.append(curr_raw_audio['audio'])
+            batched_raw_audio.append(curr_raw_audio)
             batched_seq_info.append(item)
         
         batch_data_dict = {}

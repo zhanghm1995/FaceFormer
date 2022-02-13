@@ -141,4 +141,4 @@ class FaceFormer(nn.Module):
 
         seq_output = self.motion_decoder(dec_output)
 
-        return seq_output
+        return torch.reshape(seq_output, (batch_size, seq_len, -1, 3))
