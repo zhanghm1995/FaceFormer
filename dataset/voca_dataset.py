@@ -289,11 +289,16 @@ class DataHandler:
             batched_face_vertices.append(curr_seq_face_vertices)
             batched_face_template.append(curr_seq_face_template)
             batched_subject_idx.append(curr_subject_idx)
-            batched_raw_audio.append(curr_raw_audio)
+            batched_raw_audio.append(curr_raw_audio['audio'])
             batched_seq_info.append(item)
         
-        return batched_raw_audio, batched_face_vertices, batched_face_template, batched_subject_idx, batched_seq_info
-        
+        batch_data_dict = {}
+        batch_data_dict['face_vertices'] = np.stack(batched_face_vertices)
+        batch_data_dict['face_template'] = np.stack(batched_face_template)
+        batch_data_dict['subject_idx'] = np.stack(batched_subject_idx)
+        batch_data_dict['raw_audio'] = np.stack(batched_raw_audio)
+ 
+        return batch_data_dict
 
     def _get_all_sequences_list(self):
         """Get all training, validation and testing sequences

@@ -12,20 +12,36 @@ import numpy as np
 import configparser
 from dataset.voca_dataset import DataHandler, Batcher
 from config_parser import read_config, create_default_config
+import torch
+
+
+def one_hot(x):
+    """Get the one hot matrix
+
+    Args:
+        x (Tensor): Bxseq_len dimension
+
+    Returns:
+        [type]: Bxseq_lenx8
+    """
+    x = x.unsqueeze(-1)
+    condition = torch.zeros(x.shape[0], x.shape[1], 8).scatter_(2, x.type(torch.LongTensor), 1)
+    return condition
+
 
 def test_voca_dataset(config):
     data_handler = DataHandler(config)
     batcher = Batcher(data_handler)
 
-    num_train_batches = batcher.get_num_batches(config['batch_size'])
+    batch_data_dict = batcher.get_training_batch(config['batch_size'])
 
-    processed_audio, face_vertices, face_templates, subject_idx, seq_info = \
-        batcher.get_training_batch(config['batch_size'])
+    for key, value in batch_data_dict.items():
+        print(key, value.shape)
 
-    audio = processed_audio[0]['audio']
-    num_face_frames = face_vertices[0].shape[0]
-    print(audio.shape, num_face_frames, seq_info[0])
-    np.save(f"{num_face_frames}_{seq_info[0][0]}_{seq_info[0][1]}_audio.npy", audio)
+    # audio = processed_audio[0]['audio']
+    # num_face_frames = face_vertices[0].shape[0]
+    # print(audio.shape, num_face_frames, seq_info[0])
+    # np.save(f"{num_face_frames}_{seq_info[0][0]}_{seq_info[0][1]}_audio.npy", audio)
     
 
 def test_wav2vec2():

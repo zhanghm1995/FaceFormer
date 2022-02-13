@@ -94,10 +94,24 @@ class FaceFormerEncoder(nn.Module):
         return x
 
 
+def one_hot(x):
+    """Get the one hot matrix
+
+    Args:
+        x (Tensor): Bxseq_len dimension
+
+    Returns:
+        [type]: Bxseq_lenx8
+    """
+    x = x.unsqueeze(-1)
+    condition = torch.zeros(x.shape[0], x.shape[1], 8).scatter_(2, x.type(torch.LongTensor), 1)
+    return condition
+
+
 class FaceFormer(nn.Module):
     """Transformer implementation for FaceFormer framework"""
 
-    def __init__(self, final_channels) -> None:
+    def __init__(self, config, final_channels) -> None:
         self.encoder = FaceFormerEncoder()
 
         self.decoder = Decoder(
@@ -108,12 +122,17 @@ class FaceFormer(nn.Module):
 
         self.motion_decoder = nn.Linear(d_model, final_channels, bias=False)
 
+        num_training_subjects = config['num_training_subjects']
+        style_embedding_dim = config['style_embedding_dim']
+
         self.motion_encoder = nn.Linear(final_channels, motion_embedding_dim)
         self.style_embedding = nn.Linear(num_training_subjects, style_embedding_dim, bias=False)
 
 
     def forward(self, audio_seq, face_seq, speaker_id):
         trg_mask = get_pad_mask(face_seq, self.trg_pad_idx) & get_subsequent_mask(face_seq)
+
+        audio_seq = {"waveforms": audio_seq}
 
         enc_output = self.encoder(audio_seq)
 
@@ -125,23 +144,3 @@ class FaceFormer(nn.Module):
         seq_output = self.motion_decoder(dec_output)
 
         return seq_output
-        
-
-class Trainer(object):
-    def calc_loss(self):
-        pass
-
-
-def main(args, kwags):
-    """[summary]
-
-    Args:
-        args ([type]): [description]
-        kwags ([type]): [description]
-    """
-
-    print("hello world!")
-
-
-if __name__ == "__main__":
-    pass
