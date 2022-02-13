@@ -28,12 +28,12 @@ device = torch.device("cuda")
 encoder = FaceFormerEncoder(device).to(device)
 
 input_audio = []
-raw_audio = np.load("294_FaceTalk_170904_03276_TA_sentence34_audio.npy").astype(np.float32)
-input_audio.append(raw_audio)
-raw_audio = np.load("294_FaceTalk_170904_03276_TA_sentence34_audio.npy").astype(np.float32)
-input_audio.append(raw_audio)
+raw_audio = np.load("60_FaceTalk_170728_03272_TA_sentence16_audio.npy").astype(np.float32)
+# input_audio.append(raw_audio)
+# raw_audio = np.load("294_FaceTalk_170904_03276_TA_sentence34_audio.npy").astype(np.float32)
+# input_audio.append(raw_audio)
 
-raw_audio = np.stack(input_audio)
+# raw_audio = np.stack(input_audio)
 
 waveform = preprocess_audio(raw_audio)
 print(raw_audio.shape, waveform.shape)

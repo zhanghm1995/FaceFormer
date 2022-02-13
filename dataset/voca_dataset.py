@@ -272,8 +272,8 @@ class DataHandler:
             
             frame_array_indices = list(self.data2array_verts[subj][seq].values())
 
-            # frame_array_indices, start_idx = get_sub_list_randomly(
-            #     frame_array_indices, sequence_length)
+            frame_array_indices, start_idx = get_sub_list_randomly(
+                frame_array_indices, sequence_length)
 
             curr_seq_face_vertices = self.face_vert_mmap[frame_array_indices]
             curr_seq_face_template = self.templates_data[subj]
@@ -281,8 +281,10 @@ class DataHandler:
 
             curr_raw_audio = self.raw_audio[subj][seq]
 
-            # audio_start_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + 1)) - 1
-            # curr_raw_audio['audio'] = curr_raw_audio['audio'][audio_start_idx]
+            audio_start_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + 1)) - 1
+            audio_end_idx = round(curr_raw_audio['sample_rate'] / 60.0 * (start_idx + sequence_length + 1)) - 1
+
+            curr_raw_audio['audio'] = curr_raw_audio['audio'][audio_start_idx:audio_end_idx]
 
             batched_face_vertices.append(curr_seq_face_vertices)
             batched_face_template.append(curr_seq_face_template)
