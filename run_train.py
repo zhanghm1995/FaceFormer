@@ -29,7 +29,7 @@ class Trainer(object):
         self.model = FaceFormer(self.config, 5023*3, self.device).to(self.device)
 
         self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad],
-                                     lr=1e-3)
+                                     lr=1e-4)
         
         self.criterion = nn.MSELoss()
 
@@ -44,7 +44,7 @@ class Trainer(object):
             for iter in range(num_train_batches):
                 loss = self._training_step()
                 
-                logging.warning(f"Epoch: {epoch} | Iter: {iter} | Global Step: {global_step} | Loss: {loss}")
+                print(f"Epoch: {epoch} | Iter: {iter} | Global Step: {global_step} | Loss: {loss}")
                 self.tb_writer.add_scalar("traing_loss", loss, global_step)
                 # if iter % 100 == 0:
                 #     val_loss = self._validation_step()
@@ -89,6 +89,7 @@ class Trainer(object):
         ## forward
         self.optimizer.zero_grad()
         pred_facial_motion = self.model(batch_data_dict)
+        print(torch.min(pred_facial_motion), torch.max(pred_facial_motion))
 
         pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 

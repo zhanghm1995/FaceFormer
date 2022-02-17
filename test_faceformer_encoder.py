@@ -10,11 +10,11 @@ Description: Test FaceFormer Encoder to process the audio input
 import numpy as np
 import torch
 import torchaudio
-from wav2vec2 import FaceFormerEncoder, FaceFormer
+from wav2vec2 import FaceFormerEncoder, FaceFormer, FaceFormerDecoder
 import argparse
 from omegaconf import OmegaConf
 
-def preprocess_audio(waveform):
+def preprocess_audio(waveform, device):
     waveform = torch.from_numpy(waveform).to(device)
 
     if len(waveform.shape) == 1:
@@ -38,12 +38,35 @@ def test_faceformer_encoder():
 
     # raw_audio = np.stack(input_audio)
 
-    waveform = preprocess_audio(raw_audio)
+    waveform = preprocess_audio(raw_audio, device)
     print(raw_audio.shape, waveform.shape)
 
     input_dict = {"waveforms": waveform}
     output = encoder(input_dict)
     print(output.shape)
+
+
+def test_faceformer_encoder2():
+    device = torch.device("cuda")
+
+    encoder = FaceFormerEncoder(device).to(device)
+    parameters = encoder.parameters()
+    for param in parameters:
+        print(param.shape)
+
+
+def test_faceformer_decoder():
+    device = torch.device("cuda")
+
+    config = OmegaConf.load("./config/config.yaml")
+    decoder = FaceFormerDecoder(config)
+
+    input = torch.rand((8, 60, 15069))
+    memory = torch.rand((8, 60, 128))
+
+    ouptut = decoder(input, memory)
+    print(ouptut.shape)
+
 
 
 def parse_config():
@@ -79,5 +102,10 @@ def test_faceformer():
                  "raw_audio": raw_audio}
     output = model(data_dict)
     
-    
-test_faceformer()
+
+test_faceformer_decoder()
+
+# test_faceformer_encoder()
+
+# test_faceformer_encoder2()
+# test_faceformer()

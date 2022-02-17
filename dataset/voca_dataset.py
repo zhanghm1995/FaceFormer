@@ -145,8 +145,8 @@ class DataHandler:
                                sequence_for_validation, subject_for_testing, sequence_for_testing)
         print("Initilize all sequences")
         self._get_all_sequences_list()
+        
         print("Initialize training, validation, and test indices")
-
         self.for_faceformer = for_faceformer
         if self.for_faceformer:
             self._init_indices_v2()
@@ -326,6 +326,8 @@ class DataHandler:
             self.validation_subjects, self.validation_sequences)
         self.all_testing_sequences = get_sequences_info(
             self.testing_subjects, self.testing_sequences)
+        print(f"number of all training sequence: {len(self.all_training_sequences)}, "
+              f"number of all validation sequence: {len(self.all_validation_sequences)}")
 
     def _load_data(self, config):
         face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
