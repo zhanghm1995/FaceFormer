@@ -16,7 +16,7 @@ from torch import optim
 from config_parser import get_configs
 from dataset.voca_dataset import DataHandler, Batcher
 from test_voca_dataset import one_hot
-from wav2vec2 import FaceFormer
+from wav2vec2 import FaceFormer, FaceFormerV2
 
 
 class Trainer(object):
@@ -26,7 +26,7 @@ class Trainer(object):
         self.batcher = batcher
         self.config = config
         
-        self.model = FaceFormer(self.config, 5023*3, self.device).to(self.device)
+        self.model = FaceFormerV2(self.config, self.device).to(self.device)
 
         self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad],
                                      lr=1e-4)
@@ -63,7 +63,7 @@ class Trainer(object):
             #                            , data_specifier='validation')
 
     def _prepare_data(self, batch_data_dict, device):
-        batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
+        _, seq_len = batch_data_dict['face_vertices'].shape[:2]
 
         #======= Prepare the GT face motion ==========#
         batch_data_dict['target_face_motion'] = \
@@ -78,7 +78,7 @@ class Trainer(object):
                 batch_data_dict[key] = torch.from_numpy(value).type(torch.FloatTensor).to(device)
             else:
                 batch_data_dict[key] = value.to(device)
-
+            
     def _training_step(self):
         self.model.train()
         
@@ -89,7 +89,6 @@ class Trainer(object):
         ## forward
         self.optimizer.zero_grad()
         pred_facial_motion = self.model(batch_data_dict)
-        print(torch.min(pred_facial_motion), torch.max(pred_facial_motion))
 
         pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 

@@ -81,6 +81,10 @@ class FaceFormerEncoder(nn.Module):
         bundle = torchaudio.pipelines.WAV2VEC2_BASE
         self.wav2vec2_model = bundle.get_model().to(device)
 
+        ## Frozen the TCN
+        for param in self.wav2vec2_model.feature_extractor.parameters():
+            param.requires_grad = False
+
         encoder_out_channels, output_channels = 768, 128
         self.final_projection = nn.Linear(encoder_out_channels, output_channels)
 
@@ -163,7 +167,7 @@ class FaceFormerDecoder(nn.Module):
 class FaceFormerV2(nn.Module):
     """FaceFormer implemention by using Pytorch Transformer decoder"""
 
-    def __init__(self, config, final_channels, device):
+    def __init__(self, config, device):
         super().__init__()
         
         self.encoder = FaceFormerEncoder(device)
@@ -199,9 +203,10 @@ class FaceFormerV2(nn.Module):
         enc_output = torch.permute(enc_output, (1, 0, 2))
         face_seq = torch.permute(face_seq, (1, 0, 2))
 
-        trg_mask = self._generate_subsequent_mask(len(face_seq))
+        trg_mask = self._generate_subsequent_mask(len(face_seq)).to(face_seq.device)
         output = self.decoder(face_seq, enc_output, trg_mask)
 
+        output = torch.permute(output, (1, 0, 2))
         return torch.reshape(output, (batch_size, seq_len, -1, 3))        
 
 
