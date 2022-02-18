@@ -110,11 +110,13 @@ class Trainer(object):
 
         pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 
-        batch_data_dict['face_vertices'] += 0.2
+        # batch_data_dict['face_vertices'] += 0.2
 
         # print(torch.min(batch_data_dict['face_vertices']), torch.max(batch_data_dict['face_vertices']))
 
-        loss = self.criterion(pred_facial_vertices, torch.clip(batch_data_dict['face_vertices'], min=-1, max=1).log())
+        # loss = self.criterion(pred_facial_vertices, torch.clip(batch_data_dict['face_vertices'], min=-1, max=1).log())
+        loss = self.criterion(pred_facial_vertices, batch_data_dict['face_vertices'])
+
         loss.backward()
 
         self.optimizer.step()
