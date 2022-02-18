@@ -151,12 +151,10 @@ class FaceFormerDecoder(nn.Module):
 
         self.init_weights()
 
-    def forward(self, tgt: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
+    def forward(self, tgt: Tensor, speaker_id: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None, tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None):
-        tgt_embedding = self.motion_encoder(tgt)
-
-        # tgt_embedding = torch.concat([tgt_embedding, memory], dim=-1)
+        tgt_embedding = self.motion_encoder(tgt) + self.style_embedding(speaker_id)
 
         # 1) positional encoding
         tgt_embedding = self.pos_encoder(tgt_embedding)
@@ -225,7 +223,7 @@ class FaceFormerV2(nn.Module):
         enc_output = self.encoder({"waveforms": x})
         return enc_output.permute(1, 0, 2)
 
-    def decode(self, y: Tensor, encoded_x: Tensor) -> Tensor:
+    def decode(self, y: Tensor, speaker_id: Tensor, encoded_x: Tensor) -> Tensor:
         """_summary_
 
         Args:
@@ -237,10 +235,12 @@ class FaceFormerV2(nn.Module):
         """
         ## facial motion target decoder
         y = y.permute(1, 0, 2) # to (Sy, B, ...)
-        # y = self._generate_shifted_target(y)
+        y = self._generate_shifted_target(y)
 
+        speaker_id = speaker_id.permute(1, 0, 2)
+        
         trg_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
-        output = self.decoder(y, encoded_x, trg_mask)
+        output = self.decoder(y, speaker_id, encoded_x, trg_mask)
 
         return output
 
@@ -250,8 +250,10 @@ class FaceFormerV2(nn.Module):
         encoded_x = self.encode(audio_seq)
 
         ## facial motion target decoder
-        face_seq = data_dict['target_face_motion']
-        output = self.decode(face_seq, encoded_x) # (Sy, B, C)
+        face_seq = data_dict['target_face_motion'] # (B, Sy, C)
+        speaker_id = data_dict['subject_idx']
+        
+        output = self.decode(face_seq, speaker_id, encoded_x) # output: (Sy, B, C)
 
         output = torch.permute(output, (1, 0, 2))
         return output 

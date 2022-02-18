@@ -43,8 +43,6 @@ class Trainer(object):
         self.model = FaceFormerV2(self.config, self.device).to(self.device)
 
         self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
-        # self.optimizer = optim.SGD([p for p in self.model.parameters()],
-        #                              lr=1e-4)                             
         
         self.criterion = nn.MSELoss()
         # self.criterion = nn.SmoothL1Loss()

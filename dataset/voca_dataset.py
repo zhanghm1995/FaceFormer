@@ -12,6 +12,7 @@ import pickle
 import random
 import torch
 import numpy as np
+from tqdm import tqdm
 
 
 def get_sub_list_randomly(input_list, sub_list_len):
@@ -103,44 +104,46 @@ class DataHandler:
     def _init_indices(self):
         """Initialize the indices for FaceFormer training
         """
-
         self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
         self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
 
-        self.training_indices = []
+        def get_indices(input_sequences):
+            output = []
+            for item in tqdm(input_sequences):
+                subj, seq = item
 
-        for item in self.all_training_sequences:
-            subj, seq = item
+                raw_audio = self.raw_audio[subj][seq] # dictionary
+                frame_array_indices = list(self.data2array_verts[subj][seq].values())
 
-            raw_audio = self.raw_audio[subj][seq] # dictionary
-            frame_array_indices = list(self.data2array_verts[subj][seq].values())
+                num_data_frames = len(frame_array_indices)
 
-            num_data_frames = len(frame_array_indices)
+                audio_sample_rate = raw_audio['sample_rate']
 
-            audio_sample_rate = raw_audio['sample_rate']
+                raw_audio_length = int(self.sequence_length * audio_sample_rate / 60)
 
-            raw_audio_length = int(self.sequence_length * audio_sample_rate / 60)
+                for i in range(0, num_data_frames, self.sequence_length):
+                    start_idx, end_idx = i, i + self.sequence_length
+                    audio_start_idx = round(start_idx / 60.0 * audio_sample_rate)
+                    audio_end_idx = round(end_idx / 60.0 * audio_sample_rate)
 
-            for i in range(0, num_data_frames, self.sequence_length):
-                start_idx, end_idx = i, i + self.sequence_length
-                audio_start_idx = round(start_idx / 60.0 * audio_sample_rate)
-                audio_end_idx = round(end_idx / 60.0 * audio_sample_rate)
+                    curr_raw_audio = raw_audio['audio'][audio_start_idx:audio_end_idx]
+                    curr_frame_indices = frame_array_indices[start_idx:end_idx]
 
-                curr_raw_audio = raw_audio['audio'][audio_start_idx:audio_end_idx]
-                curr_frame_indices = frame_array_indices[start_idx:end_idx]
+                    if len(curr_frame_indices) != self.sequence_length or curr_raw_audio.shape[0] != raw_audio_length:
+                        continue
+                    
+                    sequence_data_dict = {}
+                    sequence_data_dict['face_vertices'] = self.face_vert_mmap[curr_frame_indices]
+                    sequence_data_dict['face_template'] = self.templates_data[subj]
+                    sequence_data_dict['subject_idx'] = self.convert_training_subj2idx(subj)
+                    sequence_data_dict['raw_audio'] = curr_raw_audio
+                    output.append(sequence_data_dict)
+            
+            return output
 
-                if len(curr_frame_indices) != self.sequence_length or curr_raw_audio.shape[0] != raw_audio_length:
-                    continue
-                
-                sequence_data_dict = {}
-                sequence_data_dict['face_vertices'] = self.face_vert_mmap[curr_frame_indices]
-                sequence_data_dict['face_template'] = self.templates_data[subj]
-                sequence_data_dict['subject_idx'] = self.convert_training_subj2idx(subj)
-                sequence_data_dict['raw_audio'] = curr_raw_audio
-                self.training_indices.append(sequence_data_dict)
-
-        self.validation_indices = self.all_validation_sequences
-        self.testing_indices = self.all_testing_sequences
+        self.training_indices = get_indices(self.all_training_sequences)
+        self.validation_indices = get_indices(self.all_validation_sequences)
+        self.testing_indices = get_indices(self.all_testing_sequences)
         
     def get_data_splits(self):
         return self.training_indices, self.validation_indices, self.testing_indices
@@ -185,7 +188,6 @@ class DataHandler:
         raw_audio = []
         face_vertices = []
         face_templates = []
-        processed_audio = []
         subject_idx = []
         for item in indices:
             raw_audio.append(item['raw_audio'])
