@@ -20,7 +20,7 @@ import torch.nn as nn
 from torch import optim
 from subprocess import call
 from config_parser import get_configs
-from dataset.voca_dataset import DataHandler, Batcher
+from dataset import get_dataset
 from test_voca_dataset import one_hot
 from wav2vec2 import FaceFormer, FaceFormerV2
 from utils.rendering import render_mesh_helper
@@ -31,7 +31,7 @@ def split_given_size(a, size):
     return np.split(a, np.arange(size, len(a), size))
 
 class Trainer(object):
-    def __init__(self, config, batcher: Batcher) -> None:
+    def __init__(self, config, batcher) -> None:
         self.device = torch.device("cuda")
 
         self.batcher = batcher
@@ -268,8 +268,7 @@ def main():
     config = OmegaConf.load('./config/config.yaml')
 
     #========= Loading Dataset =========#
-    data_handler = DataHandler(config)
-    batcher = Batcher(data_handler)
+    batcher = get_dataset(config['dataset'])
 
     #========= Create Model ============#
     model = Trainer(config, batcher)

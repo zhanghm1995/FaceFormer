@@ -54,6 +54,9 @@ dataset:
   raw_audio_path: ./training_data/raw_audio_fixed.pkl
   templates_path: ./training_data/templates.pkl
   data2array_verts_path: ./training_data/subj_seq_to_idx.pkl
+
+  num_training_subjects: 8
+  
   sequence_length: 60
 
 
