@@ -420,6 +420,7 @@ class DataHandler:
                     frame_array_indices.append(array_idx)
             except KeyError:
                 continue
+            
             face_vertices.append(self.face_vert_mmap[frame_array_indices])
             face_templates.append(self.templates_data[subj])
             subject_idx.append(self.convert_training_subj2idx(subj))
@@ -429,4 +430,11 @@ class DataHandler:
                 for frame, array_idx in self.data2array_verts[subj][seq].items():
                     processed_seq_audio.append(self.processed_audio[subj][seq]['audio'][frame])
             processed_audio.append(processed_seq_audio)
-        return raw_audio, processed_audio, face_vertices, face_templates, subject_idx
+        
+        data_dict = {}
+        data_dict['face_vertices'] = face_vertices
+        data_dict['face_template'] = face_templates
+        data_dict['subject_idx'] = subject_idx
+        data_dict['raw_audio'] = raw_audio
+ 
+        return data_dict

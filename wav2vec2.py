@@ -185,6 +185,23 @@ class FaceFormerV2(nn.Module):
         ret[:, 1:, :] = target[:, 1:, :]
         return ret
 
+    def decode(self, y: Tensor, encoded_x: Tensor):
+        ## facial motion target decoder
+        face_seq = y
+        batch_size, seq_len = face_seq.shape[:2]
+
+        face_seq = torch.reshape(face_seq, (batch_size, seq_len, -1))
+        face_seq = self._generate_shifted_target(face_seq)
+
+        ## change to (seq_len, batch_size, feature_dim)
+        encoded_x = torch.permute(encoded_x, (1, 0, 2))
+        face_seq = torch.permute(face_seq, (1, 0, 2))
+
+        trg_mask = self._generate_subsequent_mask(len(face_seq)).to(face_seq.device)
+        output = self.decoder(face_seq, encoded_x, trg_mask)
+
+        return output
+
     def forward(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio']
@@ -208,6 +225,23 @@ class FaceFormerV2(nn.Module):
 
         output = torch.permute(output, (1, 0, 2))
         return torch.reshape(output, (batch_size, seq_len, -1, 3))        
+
+    def inference(self, data_dict):
+        ## audio source encoder
+        audio_seq = data_dict['raw_audio']
+        audio_seq = torchaudio.functional.resample(audio_seq, 22000, 16000)
+        audio_seq = {"waveforms": audio_seq}
+        enc_output = self.encoder(audio_seq)
+
+        batch_size, seq_len = enc_output.shape[:2]
+        
+        output = torch.ones((batch_size, seq_len, 15069))
+
+        for seq_idx in range(1, seq_len):
+            y = output[:, :seq_idx]
+            dec_output = self.decode(y, enc_output) # in (Sy, B, C)
+            output[:, seq_idx] = dec_output[-1:, ...]
+        return output
 
 
 class FaceFormer(nn.Module):
