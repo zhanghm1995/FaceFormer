@@ -70,9 +70,9 @@ class Trainer(object):
             # if epoch % 10 == 0:
             #     self._save(global_step)
 
-            # if epoch % 15 == 0:
-            #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
-            #                                                    'training_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='training')
+            if epoch % 1 == 0:
+                self._render_sequences(out_folder=osp.join(self.config['checkpoint_dir'], 'videos', f'training_epoch_{epoch}_iter_{iter}'), 
+                                       data_specifier='training')
             #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
             #                                                    'validation_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='validation')
 
@@ -144,7 +144,7 @@ class Trainer(object):
         data_dict['face_vertices'] = np.stack(splited_face_vertices_list[:-1])
         data_dict['raw_audio'] = np.stack(splited_face_raw_audio_list[:-1])
         data_dict['face_template'] = np.tile(data_dict['face_template'], (len(splited_face_vertices_list[:-1]), 1, 1))
-        data_dict['subject_idx'] = data_dict['subject_idx'].repeat(len(splited_face_vertices_list[:-1]), axis=0)
+        data_dict['subject_idx'] = data_dict['subject_idx'].repeat(len(splited_face_vertices_list[:-1]), axis=0) # (B, )
 
         self._prepare_data(data_dict, self.device)
         
@@ -178,8 +178,6 @@ class Trainer(object):
     def _render_sequences(self, out_folder, run_in_parallel=True, data_specifier='validation'):
         print('Render %s sequences' % data_specifier)
         if run_in_parallel:
-            # self.threads.append(threading.Thread(target=self._render_helper, args=(out_folder, data_specifier)))
-            # self.threads[-1].start()
             thread = threading.Thread(target=self._render_helper, args=(out_folder, data_specifier))
             thread.start()
             thread.join()
@@ -191,8 +189,7 @@ class Trainer(object):
             os.makedirs(out_folder)
 
         if data_specifier == 'training':
-            data_dict = self.batcher.get_training_sequences_in_order(
-                self.num_render_sequences)
+            data_dict = self.batcher.get_training_sequences_in_order(self.num_render_sequences)
             #Render each training sequence with the corresponding condition
             subject_idx = data_dict['subject_idx']
             condition_subj_idx = [[idx] for idx in subject_idx]
