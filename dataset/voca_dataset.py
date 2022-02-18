@@ -424,7 +424,7 @@ class DataHandler:
             face_vertices.append(self.face_vert_mmap[frame_array_indices])
             face_templates.append(self.templates_data[subj])
             subject_idx.append(self.convert_training_subj2idx(subj))
-            raw_audio.append(self.raw_audio[subj][seq])
+            raw_audio.append(self.raw_audio[subj][seq]['audio'])
             processed_seq_audio = []
             if self.processed_audio is not None:
                 for frame, array_idx in self.data2array_verts[subj][seq].items():

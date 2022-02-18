@@ -59,7 +59,25 @@ def test_voca_dataset(config):
     # num_face_frames = face_vertices[0].shape[0]
     # print(audio.shape, num_face_frames, seq_info[0])
     # np.save(f"{num_face_frames}_{seq_info[0][0]}_{seq_info[0][1]}_audio.npy", audio)
+
+def test_voca_dataset_get_sequences(config):
+    def split_given_size(a, size):
+        return np.split(a, np.arange(size, len(a), size))
+
+    data_handler = DataHandler(config)
+    batcher = Batcher(data_handler)
+
+    data_dict = batcher.get_training_sequences_in_order(2)
+    for key, value in data_dict.items():
+        print(key, value[0].shape)
     
+    splited_face_vertices_list = split_given_size(data_dict['face_vertices'][0], 60)
+    splited_face_raw_audio = split_given_size(data_dict['raw_audio'][0], 22000)
+    print(len(splited_face_vertices_list), len(splited_face_raw_audio))
+
+    print(splited_face_vertices_list[-2].shape, splited_face_raw_audio[-2].shape)
+    print(splited_face_vertices_list[-1].shape, splited_face_raw_audio[-1].shape)
+
 
 def test_wav2vec2():
     import torch
@@ -123,7 +141,8 @@ def main2():
     from omegaconf import OmegaConf
 
     config = OmegaConf.load('./config/config.yaml')
-    test_voca_dataset(config)
+    # test_voca_dataset(config)
+    test_voca_dataset_get_sequences(config)
 
 
 if __name__ == "__main__":

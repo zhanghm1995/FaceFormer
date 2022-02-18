@@ -26,6 +26,9 @@ from utils.rendering import render_mesh_helper
 from psbody.mesh import Mesh
 
 
+def split_given_size(a, size):
+    return np.split(a, np.arange(size, len(a), size))
+
 class Trainer(object):
     def __init__(self, config, batcher: Batcher) -> None:
         self.device = torch.device("cuda")
@@ -112,10 +115,29 @@ class Trainer(object):
         self.model.eval()
     
     def _test_step(self, data_dict):
+        """Assume the data dictionary is from one sequence
+
+        Args:
+            data_dict (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         self.model.eval()
+
+        ## slice the data_dict
+        splited_face_vertices_list = split_given_size(data_dict['face_vertices'], 60)
+        splited_face_raw_audio_list = split_given_size(data_dict['raw_audio'], 22000)
+
+        data_dict['face_vertices'] = np.stack(splited_face_vertices_list[:-1])
+        data_dict['raw_audio'] = np.stack(splited_face_raw_audio_list[:-1])
+
         pred_facial_motion = self.model.inference(data_dict)
         
-        pred_facial_vertices = data_dict['face_template'].unsqueeze(1) + pred_facial_motion
+        pred_facial_vertices = data_dict['face_template'].unsqueeze(1) + pred_facial_motion # (B, S, 5023, 3)
+        
+        ## Reshape to (B*S, 5023, 3)
+        pred_facial_vertices = torch.reshape(-1, 5023, 3)
         
         return pred_facial_vertices
 
@@ -182,7 +204,6 @@ class Trainer(object):
             textY = textsize[1] + 10
             cv2.putText(img, '%s' % (text), (textX, textY), font, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
-        num_frames = seq_verts.shape[0]
         tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=os.path.dirname(video_fname))
         wavfile.write(tmp_audio_file.name, seq_raw_audio['sample_rate'], seq_raw_audio['audio'])
 
@@ -195,11 +216,12 @@ class Trainer(object):
             writer = cv2.VideoWriter(tmp_video_file.name, cv2.VideoWriter_fourcc(*'mp4v'), 60, (1600, 800), True)
 
         ## ============= Network forward =================== ##
-        predicted_vertices = self._test_step({'raw_audio': seq_raw_audio, 'face_template': seq_template})
+        predicted_vertices = self._test_step({'raw_audio': seq_raw_audio, 'face_vertices': seq_verts, 'face_template': seq_template})
         predicted_vertices = torch.squeeze(predicted_vertices)
         
         center = np.mean(seq_verts[0], axis=0)
 
+        num_frames = predicted_vertices.shape[0]
         for i_frame in range(num_frames):
             gt_img = render_mesh_helper(Mesh(seq_verts[i_frame], self.template_mesh.f), center)
             gt_img = np.ascontiguousarray(gt_img, dtype=np.uint8)
