@@ -238,8 +238,9 @@ class FaceFormerV2(nn.Module):
         y = self._generate_shifted_target(y)
 
         speaker_id = speaker_id.permute(1, 0, 2)
-        
+
         trg_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
+
         output = self.decoder(y, speaker_id, encoded_x, trg_mask)
 
         return output
@@ -251,7 +252,7 @@ class FaceFormerV2(nn.Module):
 
         ## facial motion target decoder
         face_seq = data_dict['target_face_motion'] # (B, Sy, C)
-        speaker_id = data_dict['subject_idx']
+        speaker_id = data_dict['subject_idx'] # (B, Sy, 8)
         
         output = self.decode(face_seq, speaker_id, encoded_x) # output: (Sy, B, C)
 
@@ -263,13 +264,15 @@ class FaceFormerV2(nn.Module):
         audio_seq = data_dict['raw_audio']
         encoded_x = self.encode(audio_seq)
 
+        speaker_id = data_dict['subject_idx'] # (B, Sy, 8)
+
         seq_len, batch_size = encoded_x.shape[:2]
         
-        output = torch.ones((batch_size, seq_len, 15069)).to(encoded_x.device)
+        output = torch.zeros((batch_size, seq_len, 15069)).to(encoded_x.device)
 
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
-            dec_output = self.decode(y, encoded_x) # in (Sy, B, C)
+            dec_output = self.decode(y, speaker_id[:, :seq_idx], encoded_x) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return output
 

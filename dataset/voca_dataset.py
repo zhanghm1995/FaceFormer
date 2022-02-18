@@ -7,6 +7,7 @@ Description: Load VOCASET dataset, adapted from voca-pytorch repo
 '''
 
 import os
+import os.path as osp
 from typing import List
 import pickle
 import random
@@ -39,27 +40,11 @@ def invert_data2array(data2array):
                 array2data[array_idx] = (sub, seq, frame)
     return array2data
 
-def compute_window_array_idx(data2array, window_size):
-    def window_frame(frame_idx, window_size):
-        l0 = max(frame_idx + 1 - window_size, 0)
-        l1 = frame_idx + 1
-        window_frames = np.zeros(window_size, dtype=int)
-        window_frames[window_size - l1 + l0:] = np.arange(l0, l1)
-        return window_frames
-
-    array2window_ids = {}
-    for sub in data2array.keys():
-        for seq in data2array[sub].keys():
-            for frame, array_idx in data2array[sub][seq].items():
-                window_frames = window_frame(frame, window_size)
-                array2window_ids[array_idx] = [data2array[sub][seq][id] for id in window_frames]
-    return array2window_ids
-
 
 class DataHandler:
     """Class to load VOCA training dataset
     """
-    def __init__(self, config, for_faceformer=True):
+    def __init__(self, config):
         self.training_subjects = config['subject_for_training'].split(" ")
         self.training_sequences = config['sequence_for_training'].split(" ")
         self.validation_subjects = config['subject_for_validation'].split(" ")
@@ -69,6 +54,8 @@ class DataHandler:
 
         self.num_training_subjects = len(self.training_subjects)
         self.sequence_length = config['sequence_length']
+
+        self.config = config
 
         print("===================== Start loading data =====================")
         self._load_data(config)
@@ -140,11 +127,23 @@ class DataHandler:
                     output.append(sequence_data_dict)
             
             return output
-
-        self.training_indices = get_indices(self.all_training_sequences)
-        self.validation_indices = get_indices(self.all_validation_sequences)
-        self.testing_indices = get_indices(self.all_testing_sequences)
         
+        if osp.exists(osp.join(self.config['save_offline_path'], "training_indices.pickle")):
+            self.training_indices = pickle.load(open(osp.join(self.config['save_offline_path'], "training_indices.pickle"), 'rb'))
+            self.validation_indices = pickle.load(open(osp.join(self.config['save_offline_path'], "validation_indices.pickle"), 'rb'))
+            self.testing_indices = pickle.load(open(osp.join(self.config['save_offline_path'], "testing_indices.pickle"), 'rb'))
+        else:
+            self.training_indices = get_indices(self.all_training_sequences)
+            self.validation_indices = get_indices(self.all_validation_sequences)
+            self.testing_indices = get_indices(self.all_testing_sequences)
+
+            with open(osp.join(self.config['save_offline_path'], "training_indices.pickle"), 'wb') as handle:
+                pickle.dump(self.training_indices, handle)
+            with open(osp.join(self.config['save_offline_path'], "validation_indices.pickle"), 'wb') as handle:
+                pickle.dump(self.validation_indices, handle)
+            with open(osp.join(self.config['save_offline_path'], "testing_indices.pickle"), 'wb') as handle:
+                pickle.dump(self.testing_indices, handle)
+
     def get_data_splits(self):
         return self.training_indices, self.validation_indices, self.testing_indices
 
@@ -318,9 +317,7 @@ class DataHandler:
         face_vertices = []
         face_templates = []
         subject_idx = []
-
         raw_audio = []
-        processed_audio = []
         for subj, seq in subject_sequence_list:
             frame_array_indices = []
             try:
@@ -333,11 +330,6 @@ class DataHandler:
             face_templates.append(self.templates_data[subj])
             subject_idx.append(self.convert_training_subj2idx(subj))
             raw_audio.append(self.raw_audio[subj][seq]['audio'])
-            processed_seq_audio = []
-            if self.processed_audio is not None:
-                for frame, array_idx in self.data2array_verts[subj][seq].items():
-                    processed_seq_audio.append(self.processed_audio[subj][seq]['audio'][frame])
-            processed_audio.append(processed_seq_audio)
         
         data_dict = {}
         data_dict['face_vertices'] = face_vertices
