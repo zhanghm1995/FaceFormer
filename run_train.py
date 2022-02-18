@@ -42,8 +42,7 @@ class Trainer(object):
         
         self.model = FaceFormerV2(self.config, self.device).to(self.device)
 
-        self.optimizer = optim.Adam([p for p in self.model.parameters()],
-                                     lr=1e-7)
+        self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
         # self.optimizer = optim.SGD([p for p in self.model.parameters()],
         #                              lr=1e-4)                             
         
@@ -119,6 +118,8 @@ class Trainer(object):
 
         loss = self.criterion(pred_facial_vertices, torch.clip(batch_data_dict['face_vertices'], min=-1, max=1).log())
         loss.backward()
+
+        self.optimizer.step()
 
         return loss
     
