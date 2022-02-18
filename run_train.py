@@ -63,18 +63,19 @@ class Trainer(object):
             # if epoch % 10 == 0:
             #     self._save(global_step)
 
-            if epoch % 25 == 0:
-                self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
-                                                               'training_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='training')
-                self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
-                                                               'validation_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='validation')
+            # if epoch % 25 == 0:
+            #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
+            #                                                    'training_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='training')
+            #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
+            #                                                    'validation_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='validation')
 
     def _prepare_data(self, batch_data_dict, device):
-        _, seq_len = batch_data_dict['face_vertices'].shape[:2]
+        batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
 
         #======= Prepare the GT face motion ==========#
         batch_data_dict['target_face_motion'] = \
             batch_data_dict['face_vertices'] - np.expand_dims(batch_data_dict['face_template'], axis=1)
+        batch_data_dict['target_face_motion'] = batch_data_dict['target_face_motion'].reshape(batch_size, seq_len, -1)
 
         #======== Prepare the subject idx ===========#
         subject_idx = np.expand_dims(np.stack(batch_data_dict['subject_idx']), -1)
@@ -96,6 +97,9 @@ class Trainer(object):
         ## forward
         self.optimizer.zero_grad()
         pred_facial_motion = self.model(batch_data_dict)
+        batch_size, seq_len = pred_facial_motion.shape[:2]
+
+        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, 5023, 3))
 
         pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 
