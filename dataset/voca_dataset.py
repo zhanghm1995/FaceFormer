@@ -64,8 +64,8 @@ class Batcher(Dataset):
             self.current_state = 0
             return self.get_training_batch(batch_size)
         else:
-            self.current_state += batch_size
             batch_indices = self.training_indices[self.current_state:(self.current_state + batch_size)]
+            self.current_state += batch_size
             if len(batch_indices) != batch_size:
                 self.current_state = 0
                 return self.get_training_batch(batch_size)
@@ -295,9 +295,9 @@ class DataHandler:
             batched_seq_info.append(item)
         
         batch_data_dict = {}
-        batch_data_dict['face_vertices'] = np.stack(batched_face_vertices)
-        batch_data_dict['face_template'] = np.stack(batched_face_template)
-        batch_data_dict['subject_idx'] = np.stack(batched_subject_idx)
+        batch_data_dict['face_vertices'] = np.stack(batched_face_vertices) # (B, N, 5023, 3)
+        batch_data_dict['face_template'] = np.stack(batched_face_template) # (B, 5023, 3)
+        batch_data_dict['subject_idx'] = np.stack(batched_subject_idx) # (B, )
         try:
             batch_data_dict['raw_audio'] = np.stack(batched_raw_audio)
         except:

@@ -8,6 +8,7 @@ Description: script to run training pipeline
 '''
 import os
 import os.path as osp
+from socket import AF_IPX
 import cv2
 import tempfile
 import threading
@@ -35,21 +36,27 @@ class Trainer(object):
 
         self.batcher = batcher
         self.config = config
+
+        self.num_render_sequences = 2
+        self.template_mesh = Mesh(filename=config['template_fname'])
         
         self.model = FaceFormerV2(self.config, self.device).to(self.device)
 
-        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad],
-                                     lr=1e-4)
+        self.optimizer = optim.Adam([p for p in self.model.parameters()],
+                                     lr=1e-7)
+        # self.optimizer = optim.SGD([p for p in self.model.parameters()],
+        #                              lr=1e-4)                             
         
         self.criterion = nn.MSELoss()
+        # self.criterion = nn.SmoothL1Loss()
 
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
     
     def train(self):
-        num_train_batches = self.batcher.get_num_batches(self.config['batch_size'])
+        num_train_batches = self.batcher.get_num_batches(self.config['batch_size']) + 1
         global_step = 0
-
+        
         for epoch in range(1, self.config['epoch_num'] + 1):
             for iter in range(num_train_batches):
                 loss = self._training_step()
@@ -66,7 +73,7 @@ class Trainer(object):
             # if epoch % 10 == 0:
             #     self._save(global_step)
 
-            # if epoch % 25 == 0:
+            # if epoch % 15 == 0:
             #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
             #                                                    'training_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='training')
             #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
@@ -106,7 +113,11 @@ class Trainer(object):
 
         pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 
-        loss = self.criterion(pred_facial_vertices, batch_data_dict['face_vertices'])
+        batch_data_dict['face_vertices'] += 0.2
+
+        # print(torch.min(batch_data_dict['face_vertices']), torch.max(batch_data_dict['face_vertices']))
+
+        loss = self.criterion(pred_facial_vertices, torch.clip(batch_data_dict['face_vertices'], min=-1, max=1).log())
         loss.backward()
 
         return loss
@@ -131,15 +142,24 @@ class Trainer(object):
 
         data_dict['face_vertices'] = np.stack(splited_face_vertices_list[:-1])
         data_dict['raw_audio'] = np.stack(splited_face_raw_audio_list[:-1])
+        data_dict['face_template'] = np.tile(data_dict['face_template'], (len(splited_face_vertices_list[:-1]), 1, 1))
+        data_dict['subject_idx'] = data_dict['subject_idx'].repeat(len(splited_face_vertices_list[:-1]), axis=0)
 
+        self._prepare_data(data_dict, self.device)
+        
+        ## Network forward
         pred_facial_motion = self.model.inference(data_dict)
+
+        batch_size, seq_len = pred_facial_motion.shape[:2]
+        
+        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, -1, 3))
         
         pred_facial_vertices = data_dict['face_template'].unsqueeze(1) + pred_facial_motion # (B, S, 5023, 3)
-        
+
         ## Reshape to (B*S, 5023, 3)
-        pred_facial_vertices = torch.reshape(-1, 5023, 3)
+        pred_facial_vertices = torch.reshape(pred_facial_vertices, (-1, 5023, 3))
         
-        return pred_facial_vertices
+        return pred_facial_vertices.cpu().detach().numpy()
 
     def _save(self):
         pass
@@ -205,7 +225,7 @@ class Trainer(object):
             cv2.putText(img, '%s' % (text), (textX, textY), font, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
         tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=os.path.dirname(video_fname))
-        wavfile.write(tmp_audio_file.name, seq_raw_audio['sample_rate'], seq_raw_audio['audio'])
+        wavfile.write(tmp_audio_file.name, 22000, seq_raw_audio)
 
         tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=os.path.dirname(video_fname))
         if int(cv2.__version__[0]) < 3:
@@ -216,9 +236,12 @@ class Trainer(object):
             writer = cv2.VideoWriter(tmp_video_file.name, cv2.VideoWriter_fourcc(*'mp4v'), 60, (1600, 800), True)
 
         ## ============= Network forward =================== ##
-        predicted_vertices = self._test_step({'raw_audio': seq_raw_audio, 'face_vertices': seq_verts, 'face_template': seq_template})
-        predicted_vertices = torch.squeeze(predicted_vertices)
-        
+        data_dict = {'raw_audio': seq_raw_audio, 
+                     'face_vertices': seq_verts, 
+                     'face_template': np.expand_dims(seq_template, axis=0), 
+                     'subject_idx': np.array([condition_idx])}
+        predicted_vertices = self._test_step(data_dict)
+
         center = np.mean(seq_verts[0], axis=0)
 
         num_frames = predicted_vertices.shape[0]

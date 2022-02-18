@@ -89,7 +89,14 @@ class FaceFormerEncoder(nn.Module):
         self.final_projection = nn.Linear(encoder_out_channels, output_channels)
 
         self.scale_factor = 60 / 16000.0
-        
+
+        self.init_weights()
+
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.final_projection.weight, -initrange, initrange)
+        nn.init.zeros_(self.final_projection.bias)
+
     def forward(self, data_dict):
         waveforms = data_dict['waveforms']
         lengths = None
@@ -136,7 +143,11 @@ class FaceFormerDecoder(nn.Module):
         self.pos_encoder = PositionalEncoding(config['d_model'])
 
         ## The final motion decoder
-        self.motion_decoder = nn.Linear(128, 5023*3)
+        self.motion_decoder = nn.Sequential(
+            nn.Linear(128, 1024),
+            nn.Tanh(),
+            nn.Linear(1024, 5023*3, bias=False),
+        )
 
         self.init_weights()
 
@@ -144,6 +155,8 @@ class FaceFormerDecoder(nn.Module):
                 memory_mask: Optional[Tensor] = None, tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None):
         tgt_embedding = self.motion_encoder(tgt)
+
+        # tgt_embedding = torch.concat([tgt_embedding, memory], dim=-1)
 
         # 1) positional encoding
         tgt_embedding = self.pos_encoder(tgt_embedding)
@@ -159,9 +172,14 @@ class FaceFormerDecoder(nn.Module):
     def init_weights(self):
         r"""Initiate parameters in the transformer model."""
 
-        for p in self.parameters():
-            if p.dim() > 1:
-                xavier_uniform_(p)
+        # for p in self.parameters():
+        #     if p.dim() > 1:
+        #         xavier_uniform_(p)
+
+        initrange = 0.1
+        # nn.init.uniform_(self.motion_decoder.weight, -initrange, initrange)
+        # self.motion_decoder.bias.data.zero_()
+        # self.motion_decoder.weight.data.uniform_(-initrange, initrange)
         
 
 class FaceFormerV2(nn.Module):
@@ -218,8 +236,8 @@ class FaceFormerV2(nn.Module):
             Tensor: (Sy, B, E)
         """
         ## facial motion target decoder
-        y = y.permute(1, 0, 2) # (Sy, B, ...)
-        y = self._generate_shifted_target(y)
+        y = y.permute(1, 0, 2) # to (Sy, B, ...)
+        # y = self._generate_shifted_target(y)
 
         trg_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
         output = self.decoder(y, encoded_x, trg_mask)
@@ -241,17 +259,15 @@ class FaceFormerV2(nn.Module):
     def inference(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio']
-        audio_seq = torchaudio.functional.resample(audio_seq, 22000, 16000)
-        audio_seq = {"waveforms": audio_seq}
-        enc_output = self.encoder(audio_seq)
+        encoded_x = self.encode(audio_seq)
 
-        batch_size, seq_len = enc_output.shape[:2]
+        seq_len, batch_size = encoded_x.shape[:2]
         
-        output = torch.ones((batch_size, seq_len, 15069))
+        output = torch.ones((batch_size, seq_len, 15069)).to(encoded_x.device)
 
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
-            dec_output = self.decode(y, enc_output) # in (Sy, B, C)
+            dec_output = self.decode(y, encoded_x) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return output
 
