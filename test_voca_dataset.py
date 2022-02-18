@@ -10,7 +10,7 @@ import os
 import shutil
 import numpy as np
 import configparser
-from dataset.voca_dataset import DataHandler, Batcher
+from dataset import get_dataset
 from config_parser import read_config, create_default_config
 import torch
 
@@ -41,8 +41,7 @@ def _prepare_data(batch_data_dict):
 
 
 def test_voca_dataset(config):
-    data_handler = DataHandler(config)
-    batcher = Batcher(data_handler)
+    batcher = get_dataset(config)
 
     batch_data_dict = batcher.get_training_batch(config['batch_size'])
 
@@ -64,8 +63,7 @@ def test_voca_dataset_get_sequences(config):
     def split_given_size(a, size):
         return np.split(a, np.arange(size, len(a), size))
 
-    data_handler = DataHandler(config)
-    batcher = Batcher(data_handler)
+    batcher = get_dataset(config)
 
     data_dict = batcher.get_training_sequences_in_order(2)
     for key, value in data_dict.items():
@@ -141,8 +139,8 @@ def main2():
     from omegaconf import OmegaConf
 
     config = OmegaConf.load('./config/config.yaml')
-    # test_voca_dataset(config)
-    test_voca_dataset_get_sequences(config)
+    test_voca_dataset(config['dataset'])
+    # test_voca_dataset_get_sequences(config['dataset'])
 
 
 if __name__ == "__main__":
