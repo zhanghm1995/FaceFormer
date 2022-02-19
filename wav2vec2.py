@@ -8,6 +8,7 @@ Description: The wav2vec 2.0 implementation
 '''
 
 import math
+from matplotlib.pyplot import axis
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -230,6 +231,7 @@ class FaceFormerV2(nn.Module):
 
         Args:
             y (Tensor): (B, Sy, C)
+            speaker_id (Tensor): (B, Sy, num_subject)
             encoded_x (Tensor): (Sx, B, E)
 
         Returns:
@@ -251,7 +253,7 @@ class FaceFormerV2(nn.Module):
 
     def forward(self, data_dict):
         ## audio source encoder
-        audio_seq = data_dict['raw_audio']
+        audio_seq = data_dict['raw_audio'] # (B, 22000)
         encoded_x = self.encode(audio_seq)
 
         ## facial motion target decoder
@@ -279,6 +281,65 @@ class FaceFormerV2(nn.Module):
             dec_output = self.decode(y, speaker_id[:, :seq_idx], encoded_x, shift_target_tright=False) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return output
+    
+    def inference_whole_sequence(self, data_dict, net_sequence_length, device):
+        """Inference a whole sequence, we slice the sequence inside this function
+
+        Args:
+            data_dict (dict): numpy array
+
+        Returns:
+            _type_: _description_
+        """
+        def infer(raw_audio, subject_idx, start_token):
+            ## audio source encoder
+            encoded_x = self.encode(raw_audio)
+
+            seq_len, batch_size = encoded_x.shape[:2]
+        
+            output = torch.zeros((batch_size, seq_len, 15069)).to(encoded_x.device)
+            if start_token is not None:
+                output[:, 0:1, :] = start_token
+
+            ## Forward transformer autoregressively
+            for seq_idx in range(1, seq_len):
+                y = output[:, :seq_idx]
+                dec_output = self.decode(y, subject_idx[:, :seq_idx], encoded_x, shift_target_tright=False) # in (Sy, B, C)
+                output[:, seq_idx] = dec_output[-1:, ...]
+            return output
+
+        whole_seq_len = data_dict['target_face_motion'].shape[1]
+        
+        whole_infer_output = torch.zeros_like(data_dict['target_face_motion']) # (B, seq_len, 15609)
+
+        start_token = torch.zeros((1, 1, 15069)).to(device)
+        
+        for i in range(0, whole_seq_len - net_sequence_length - 1, net_sequence_length - 1):
+            start_idx, end_idx = i, i + net_sequence_length
+            audio_start_idx = round(start_idx / 60.0 * 22000)
+            audio_end_idx = round(end_idx / 60.0 * 22000)
+
+            curr_raw_audio = data_dict['raw_audio'][:, audio_start_idx:audio_end_idx] # (1, Sx)
+            curr_subject_idx = data_dict['subject_idx']
+
+            output = infer(curr_raw_audio, curr_subject_idx, start_token)
+            whole_infer_output[:, i:i+net_sequence_length, :] = output[0, :, :]
+
+            # use last output in last forward
+            start_token = output[:, -2:-1, :]
+
+            if i + net_sequence_length - 1 >= whole_seq_len - net_sequence_length - 1:
+                j = whole_seq_len - net_sequence_length
+                start_idx, end_idx = j, j + net_sequence_length
+                audio_start_idx = round(start_idx / 60.0 * 22000)
+                audio_end_idx = round(end_idx / 60.0 * 22000)
+                curr_raw_audio = data_dict['raw_audio'][:, audio_start_idx:audio_end_idx] # (1, Sx)
+
+                start_token = output[:, j-i:j-i+1, :]
+                output = infer(curr_raw_audio, curr_subject_idx, start_token)
+                whole_infer_output[:, j:j+net_sequence_length, :] = output[0, :, :]
+            
+        return whole_infer_output
 
 
 class FaceFormer(nn.Module):

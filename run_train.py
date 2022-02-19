@@ -8,15 +8,18 @@ Description: script to run training pipeline
 '''
 import os
 import os.path as osp
+from sys import stderr
 import cv2
 import tempfile
 import threading
+from matplotlib.pyplot import axis
 import numpy as np
 import logging
 from scipy.io import wavfile
 import torch
 import torch.nn as nn
 from torch import optim
+import subprocess
 from subprocess import call
 from config_parser import get_configs
 from dataset import get_dataset
@@ -112,13 +115,18 @@ class Trainer(object):
                 self.model_serializer.save(checkpoint, False)
                 print(f"Saving checkpoint in epoch {epoch}")
 
-            if epoch % 4 == 0:
+            if epoch % 1 == 0:
                 self._render_sequences(out_folder=osp.join(self.config['checkpoint_dir'], 'videos', f'training_epoch_{epoch}_iter_{iter}'), 
                                        data_specifier='training')
             #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
             #                                                    'validation_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='validation')
 
         print("Training Done!")
+
+    def debug(self):
+        start_epoch, _ = self.restore(load_latest=True)
+        self._render_sequences(out_folder=osp.join(self.config['checkpoint_dir'], 'videos', f'training_epoch_debug'), 
+                                data_specifier='training')
 
     def _prepare_data(self, batch_data_dict, device, normalize=True):
         batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
@@ -182,6 +190,34 @@ class Trainer(object):
             _type_: _description_
         """
         self.model.eval()
+        self._prepare_data(data_dict, self.device)
+        
+        ## Network forward
+        pred_facial_motion = self.model.inference_whole_sequence(data_dict, 60, self.device) # (1, L, 15069)
+
+        loss = self.criterion(pred_facial_motion, data_dict['target_face_motion'])
+        print(f"[INFO] Test Loss: {loss.item()}")
+
+        batch_size, seq_len = pred_facial_motion.shape[:2]
+        
+        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, -1, 3)).cpu().detach().numpy()
+
+        pred_facial_motion = denormalize_motion(pred_facial_motion)
+        
+        pred_facial_vertices = data_dict['face_template'].cpu().numpy() + pred_facial_motion[0] # (S, 5023, 3)
+
+        return pred_facial_vertices
+
+    def _test_step_old(self, data_dict):
+        """Assume the data dictionary is from one sequence
+
+        Args:
+            data_dict (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        self.model.eval()
 
         ## slice the data_dict
         splited_face_vertices_list = split_given_size(data_dict['face_vertices'], 60)
@@ -196,6 +232,9 @@ class Trainer(object):
         
         ## Network forward
         pred_facial_motion = self.model.inference(data_dict)
+
+        loss = self.criterion(pred_facial_motion, data_dict['target_face_motion'])
+        print(f"[INFO] Test Loss: {loss.item()}")
 
         batch_size, seq_len = pred_facial_motion.shape[:2]
         
@@ -237,10 +276,9 @@ class Trainer(object):
             os.makedirs(out_folder)
 
         if data_specifier == 'training':
-            data_dict = self.batcher.get_training_sequences_in_order(self.num_render_sequences)
-            #Render each training sequence with the corresponding condition
-            subject_idx = data_dict['subject_idx']
-            condition_subj_idx = [[idx] for idx in subject_idx]
+            data_list = self.batcher.get_training_sequences_in_order(self.num_render_sequences)
+            # Render each training sequence with the corresponding condition
+            condition_subj_idx = [[data['subject_idx']] for data in data_list]
         elif data_specifier == 'validation':
             data_dict = self.batcher.get_validation_sequences_in_order(
                 self.num_render_sequences)
@@ -251,18 +289,16 @@ class Trainer(object):
         else:
             raise NotImplementedError('Unknown data specifier %s' % data_specifier)
 
-        for i_seq in range(len(data_dict['raw_audio'])):
+        for i_seq, seq_dict in enumerate(data_list):
             conditions = condition_subj_idx[i_seq]
             for condition_idx in conditions:
                 condition_subj = self.batcher.convert_training_idx2subj(condition_idx)
                 video_fname = os.path.join(out_folder, '%s_%03d_condition_%s.mp4' % (data_specifier, i_seq, condition_subj))
                 self._render_sequences_helper(video_fname, 
-                                              data_dict['raw_audio'][i_seq], 
-                                              data_dict['face_template'][i_seq], 
-                                              data_dict['face_vertices'][i_seq], 
+                                              seq_dict, 
                                               condition_idx)
 
-    def _render_sequences_helper(self, video_fname, seq_raw_audio, seq_template, seq_verts, condition_idx):
+    def _render_sequences_helper(self, video_fname, data_dict, condition_idx):
         def add_image_text(img, text):
             font = cv2.FONT_HERSHEY_SIMPLEX
             textsize = cv2.getTextSize(text, font, 1, 2)[0]
@@ -271,28 +307,23 @@ class Trainer(object):
             cv2.putText(img, '%s' % (text), (textX, textY), font, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
         tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=os.path.dirname(video_fname))
-        wavfile.write(tmp_audio_file.name, 22000, seq_raw_audio)
+        wavfile.write(tmp_audio_file.name, 22000, data_dict['raw_audio'])
 
         tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=os.path.dirname(video_fname))
-        if int(cv2.__version__[0]) < 3:
-            print('cv2 < 3')
-            writer = cv2.VideoWriter(tmp_video_file.name, cv2.cv.CV_FOURCC(*'mp4v'), 60, (1600, 800), True)
-        else:
-            print('cv2 >= 3')
-            writer = cv2.VideoWriter(tmp_video_file.name, cv2.VideoWriter_fourcc(*'mp4v'), 60, (1600, 800), True)
+        writer = cv2.VideoWriter(tmp_video_file.name, cv2.VideoWriter_fourcc(*'mp4v'), 60, (1600, 800), True)
 
         ## ============= Network forward =================== ##
-        data_dict = {'raw_audio': seq_raw_audio, 
-                     'face_vertices': seq_verts, 
-                     'face_template': np.expand_dims(seq_template, axis=0), 
-                     'subject_idx': np.array([condition_idx])}
-        predicted_vertices = self._test_step(data_dict)
+        input_data_dict = {'raw_audio': np.expand_dims(data_dict['raw_audio'], axis=0),
+                           'face_vertices': np.expand_dims(data_dict['face_vertices'], axis=0),
+                           'face_template': np.expand_dims(data_dict['face_template'], axis=0), 
+                           'subject_idx': np.expand_dims(np.array(condition_idx), axis=0)}
+        predicted_vertices = self._test_step(input_data_dict)
 
-        center = np.mean(seq_verts[0], axis=0)
+        center = np.mean(data_dict['face_vertices'][0], axis=0)
 
         num_frames = predicted_vertices.shape[0]
         for i_frame in range(num_frames):
-            gt_img = render_mesh_helper(Mesh(seq_verts[i_frame], self.template_mesh.f), center)
+            gt_img = render_mesh_helper(Mesh(data_dict['face_vertices'][i_frame], self.template_mesh.f), center)
             gt_img = np.ascontiguousarray(gt_img, dtype=np.uint8)
             add_image_text(gt_img, 'Captured data')
 
@@ -303,9 +334,8 @@ class Trainer(object):
             writer.write(img)
         writer.release()
 
-        cmd = ('ffmpeg' + ' -i {0} -i {1} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p {2}'.format(
-            tmp_audio_file.name, tmp_video_file.name, video_fname)).split()
-        call(cmd)
+        cmd = f'ffmpeg -i {tmp_audio_file.name} -i {tmp_video_file.name} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p {video_fname}'
+        subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def main():
     from omegaconf import OmegaConf
@@ -317,7 +347,7 @@ def main():
 
     #========= Create Model ============#
     model = Trainer(config, batcher)
-    model.train()
+    model.debug()
 
 
 if __name__ == "__main__":

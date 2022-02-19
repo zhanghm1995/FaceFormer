@@ -292,49 +292,51 @@ class DataHandler:
         if len(all_instances) != len(set(all_instances)):
             raise ValueError('User-specified data split not disjoint')
 
-    def _get_random_sequences(self, subjects, sequences, num_sequences):
-        if num_sequences == 0:
+    def _get_random_sequences(self, subjects, sequences, num_sequences: int):
+        if num_sequences <= 0:
             return
 
-        sub_seq_list = []
-        for subj in subjects:
-            if subj not in self.data2array_verts:
-                continue
-            for seq in sequences:
-                if(seq not in self.raw_audio[subj]) or (seq not in self.data2array_verts[subj]):
-                    continue
-                sub_seq_list.append((subj, seq))
         st = random.getstate()
-        random.seed(777)
-        random.shuffle(sub_seq_list)
+        random.seed(888)
+        sub_seq_list = random.sample(self.all_training_sequences, len(self.all_training_sequences))
         random.setstate(st)
 
-        if num_sequences > 0 and num_sequences < len(sub_seq_list):
+        if num_sequences < len(sub_seq_list):
             sub_seq_list = sub_seq_list[:num_sequences]
         return self._get_subject_sequences(sub_seq_list)
 
-    def _get_subject_sequences(self, subject_sequence_list):
-        face_vertices = []
-        face_templates = []
-        subject_idx = []
-        raw_audio = []
-        for subj, seq in subject_sequence_list:
-            frame_array_indices = []
-            try:
-                for frame, array_idx in self.data2array_verts[subj][seq].items():
-                    frame_array_indices.append(array_idx)
-            except KeyError:
-                continue
+    def _get_subject_sequences(self, subject_sequence_list, return_dict=False):
+        if return_dict:
+            face_vertices = []
+            face_templates = []
+            subject_idx = []
+            raw_audio = []
+
+            for subj, seq in subject_sequence_list:
+                frame_array_indices = sorted(self.data2array_verts[subj][seq].keys())
+                face_vertices.append(self.face_vert_mmap[frame_array_indices])
+                face_templates.append(self.templates_data[subj])
+                subject_idx.append(self.convert_training_subj2idx(subj))
+                raw_audio.append(self.raw_audio[subj][seq]['audio'])
             
-            face_vertices.append(self.face_vert_mmap[frame_array_indices])
-            face_templates.append(self.templates_data[subj])
-            subject_idx.append(self.convert_training_subj2idx(subj))
-            raw_audio.append(self.raw_audio[subj][seq]['audio'])
-        
-        data_dict = {}
-        data_dict['face_vertices'] = face_vertices
-        data_dict['face_template'] = face_templates
-        data_dict['subject_idx'] = subject_idx
-        data_dict['raw_audio'] = raw_audio
+            data_dict = {}
+            data_dict['face_vertices'] = face_vertices
+            data_dict['face_template'] = face_templates
+            data_dict['subject_idx'] = subject_idx
+            data_dict['subject_idx'] = raw_audio
  
-        return data_dict
+            return data_dict
+        else:
+            # return list
+            data_list = []
+
+            for subj, seq in subject_sequence_list:
+                data_dict = {}
+                frame_array_indices = sorted(self.data2array_verts[subj][seq].keys())
+                data_dict['face_vertices'] = self.face_vert_mmap[frame_array_indices] # (N, 5023, 3)
+                data_dict['face_template'] = self.templates_data[subj] # (5023, 3)
+                data_dict['subject_idx'] = self.convert_training_subj2idx(subj) # number
+                data_dict['raw_audio'] = self.raw_audio[subj][seq]['audio'] # (M, )
+                data_list.append(data_dict)
+
+            return data_list

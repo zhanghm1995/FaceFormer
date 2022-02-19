@@ -80,6 +80,14 @@ class Batcher(Dataset):
         return int(float(len(self.training_indices)) / float(batch_size))
 
     def get_training_sequences_in_order(self, num_of_sequences):
+        """Get the training sequences by keeping original order
+
+        Args:
+            num_of_sequences (int): how many sequences you want to fetch
+
+        Returns:
+            _type_: _description_
+        """
         return self.data_handler.get_training_sequences(num_of_sequences)
 
     def get_validation_sequences_in_order(self, num_of_sequences):
