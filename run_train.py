@@ -25,6 +25,7 @@ from test_voca_dataset import one_hot
 from wav2vec2 import FaceFormer, FaceFormerV2
 from utils.rendering import render_mesh_helper
 from psbody.mesh import Mesh
+from utils.model_serializer import ModelSerializer
 
 
 def split_given_size(a, size):
@@ -49,6 +50,10 @@ class Trainer(object):
 
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
+        
+        self.model_serializer = ModelSerializer(
+            osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"),
+            osp.join(self.config['checkpoint_dir'], "best_model.ckpt"))
     
     def train(self):
         num_train_batches = self.batcher.get_num_batches(self.config['batch_size']) + 1
@@ -67,8 +72,14 @@ class Trainer(object):
                 
                 global_step += 1
 
-            # if epoch % 10 == 0:
-            #     self._save(global_step)
+            if epoch % 2 == 0:
+                checkpoint = {
+                    'epoch': epoch + 1,
+                    'valid_loss_min': 1000.0,
+                    'state_dict': self.model.state_dict(),
+                    'optimizer': self.optimizer.state_dict(),
+                }
+                self.model_serializer.save(checkpoint, False)
 
             if epoch % 1 == 0:
                 self._render_sequences(out_folder=osp.join(self.config['checkpoint_dir'], 'videos', f'training_epoch_{epoch}_iter_{iter}'), 
