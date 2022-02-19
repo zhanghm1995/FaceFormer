@@ -18,9 +18,9 @@ class Batcher(Dataset):
         self.data_handler = data_handler
 
         data_splits = data_handler.get_data_splits()
-        self.training_indices = copy.deepcopy(data_splits[0])
-        self.val_indices = copy.deepcopy(data_splits[1])
-        self.test_indices = copy.deepcopy(data_splits[2])
+        self.training_indices = data_splits[0]
+        self.val_indices = data_splits[1]
+        self.test_indices = data_splits[2]
 
         self.current_state = 0
 

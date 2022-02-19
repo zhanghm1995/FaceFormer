@@ -26,12 +26,22 @@ from utils.rendering import render_mesh_helper
 from psbody.mesh import Mesh
 from utils.model_serializer import ModelSerializer
 
-MIN_MOTION = [-0.00916614, -0.02674509, -0.0166305]
-MAX_MOTION = [0.01042878, 0.01583716, 0.01325295]
+MIN_MOTION = np.array([-0.00916614, -0.02674509, -0.0166305])
+MAX_MOTION = np.array([0.01042878, 0.01583716, 0.01325295])
+DIFF_MOTION = MAX_MOTION - MIN_MOTION
+
+def normalize_motion(input):
+    output = input - MIN_MOTION[None, None, None, :]
+    output = output / DIFF_MOTION[None, None, None, :]
+    return output
 
 
-def nomalize_motion(input):
-    
+def denormalize_motion(input):
+    output = np.multiply(input, DIFF_MOTION[None, None, None, :])
+    output = output + MIN_MOTION[None, None, None, :]
+    return output
+
+
 def split_given_size(a, size):
     return np.split(a, np.arange(size, len(a), size))
 
@@ -49,8 +59,8 @@ class Trainer(object):
 
         self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
         
-        # self.criterion = nn.MSELoss()
-        self.criterion = nn.SmoothL1Loss()
+        self.criterion = nn.MSELoss()
+        # self.criterion = nn.SmoothL1Loss()
 
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
@@ -65,7 +75,7 @@ class Trainer(object):
         if load_best:
             start_epoch, valid_loss_min = self.model_serializer.load_ckp(
                 osp.join(self.config['checkpoint_dir'], "best_model.ckpt"), self.model, self.optimizer)
-        elif load_latest:
+        elif load_latest and osp.exists(osp.join(self.config['checkpoint_dir'], "latest_model.ckpt")):
             start_epoch, valid_loss_min = self.model_serializer.load_ckp(
                 osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"), self.model, self.optimizer)
             print(f"[INFO] Load latest checkpoint start_epoch: {start_epoch}")
@@ -115,11 +125,13 @@ class Trainer(object):
 
         #======= Prepare the GT face motion ==========#
         batch_data_dict['target_face_motion'] = \
-            batch_data_dict['face_vertices'] - np.expand_dims(batch_data_dict['face_template'], axis=1)
-        batch_data_dict['target_face_motion'] = batch_data_dict['target_face_motion'].reshape(batch_size, seq_len, -1)
+            batch_data_dict['face_vertices'] - np.expand_dims(batch_data_dict['face_template'], axis=1) # (B, Sy, 5023, 3)
 
-        if normalize:
-            min_value
+        if normalize: # convert to [0, 1]
+            batch_data_dict['target_face_motion'] = normalize_motion(batch_data_dict['target_face_motion'])
+
+        batch_data_dict['target_face_motion'] = \
+            batch_data_dict['target_face_motion'].reshape(batch_size, seq_len, -1) # (B, Sy, 15069)
 
         #======== Prepare the subject idx ===========#
         subject_idx = np.expand_dims(np.stack(batch_data_dict['subject_idx']), -1)
@@ -143,16 +155,13 @@ class Trainer(object):
         pred_facial_motion = self.model(batch_data_dict)
         batch_size, seq_len = pred_facial_motion.shape[:2]
 
-        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, 5023, 3))
+        # pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, 5023, 3))
+        # print(torch.min(pred_facial_motion), torch.max(pred_facial_motion))
+        # print(torch.min(batch_data_dict['target_face_motion']), torch.max(batch_data_dict['target_face_motion']))
 
-        pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
+        # pred_facial_vertices = batch_data_dict['face_template'].unsqueeze(1) + pred_facial_motion
 
-        # batch_data_dict['face_vertices'] += 0.2
-
-        # print(torch.min(batch_data_dict['face_vertices']), torch.max(batch_data_dict['face_vertices']))
-
-        # loss = self.criterion(pred_facial_vertices, torch.clip(batch_data_dict['face_vertices'], min=-1, max=1).log())
-        loss = self.criterion(pred_facial_vertices, batch_data_dict['face_vertices'])
+        loss = self.criterion(pred_facial_motion, batch_data_dict['target_face_motion'])
 
         loss.backward()
 
@@ -191,6 +200,8 @@ class Trainer(object):
         batch_size, seq_len = pred_facial_motion.shape[:2]
         
         pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, -1, 3))
+
+        pred_facial_motion = denormalize_motion(pred_facial_motion)
         
         pred_facial_vertices = data_dict['face_template'].unsqueeze(1) + pred_facial_motion # (B, S, 5023, 3)
 

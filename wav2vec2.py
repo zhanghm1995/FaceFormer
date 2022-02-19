@@ -145,8 +145,9 @@ class FaceFormerDecoder(nn.Module):
         ## The final motion decoder
         self.motion_decoder = nn.Sequential(
             nn.Linear(128, 1024),
-            nn.Tanh(),
-            nn.Linear(1024, 5023*3, bias=False),
+            nn.ReLU(),
+            nn.Linear(1024, 5023*3),
+            nn.Sigmoid()
         )
 
         self.init_weights()
