@@ -25,13 +25,12 @@ def stat_voca_training_data(config):
 
     data2array_verts = pickle.load(open(data2array_verts_path, 'rb'))
     array2data_verts = invert_data2array(data2array_verts)
-    print("Done")
 
     min_all_frames_motion, max_all_frames_motion = [], []
     for subj, value in tqdm(data2array_verts.items()):
         curr_subj_template = templates_data[subj] # (5023, 3)
 
-        for seq, index in tqdm(value.items()):
+        for seq, index in value.items():
             curr_seq_indices = sorted(index.values())
             start_idx, end_idx = min(curr_seq_indices), max(curr_seq_indices) + 1
             curr_seq_vertices = face_vert_mmap[start_idx:end_idx, ...] # (N, 5023, 3)
@@ -50,8 +49,39 @@ def stat_voca_training_data(config):
     max_value = np.max(max_all_frames_motion, axis=0)
     print(min_value, max_value)
 
-    # all_frames_motion = np.reshape(np.concatenate(all_frames_motion, axis=0), (-1, 3))
-    # print("all_frames_motion shape: ", all_frames_motion.shape)
+
+MIN_MOTION = [-0.00916614, -0.02674509, -0.0166305]
+MAX_MOTION = [0.01042878, 0.01583716, 0.01325295]
+
+
+def test_normalize(config):
+    face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
+    face_templates_path = load_from_config(config, 'templates_path')
+    raw_audio_path = load_from_config(config, 'raw_audio_path')
+    data2array_verts_path = load_from_config(config, 'data2array_verts_path')
+
+    face_vert_mmap = np.load(face_verts_mmaps_path, mmap_mode='r') # (N, 5023, 3)
+    templates_data = pickle.load(open(face_templates_path, 'rb'), encoding='latin1')
+    raw_audio = pickle.load(open(raw_audio_path, 'rb'), encoding='latin1')
+
+    data2array_verts = pickle.load(open(data2array_verts_path, 'rb'))
+    array2data_verts = invert_data2array(data2array_verts)
+    
+    DIFF_MOTION = np.array(MAX_MOTION) - np.array(MIN_MOTION)
+
+    for subj, value in tqdm(data2array_verts.items()):
+        curr_subj_template = templates_data[subj] # (5023, 3)
+
+        for seq, index in value.items():
+            curr_seq_indices = sorted(index.values())
+            start_idx, end_idx = min(curr_seq_indices), max(curr_seq_indices) + 1
+            curr_seq_vertices = face_vert_mmap[start_idx:end_idx, ...] # (N, 5023, 3)
+            curr_seq_vertiecs_motion = curr_seq_vertices - np.expand_dims(curr_subj_template, axis=0)
+            
+            curr_seq_vertiecs_motion = curr_seq_vertiecs_motion - np.expand_dims(np.expand_dims(np.array(MIN_MOTION), axis=0), axis=0)
+            curr_seq_vertiecs_motion = curr_seq_vertiecs_motion / DIFF_MOTION[None, None, :]
+
+            print(np.min(curr_seq_vertiecs_motion), np.max(curr_seq_vertiecs_motion))
 
     
 

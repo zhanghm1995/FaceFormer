@@ -8,7 +8,6 @@ Description: script to run training pipeline
 '''
 import os
 import os.path as osp
-from socket import AF_IPX
 import cv2
 import tempfile
 import threading
@@ -27,7 +26,12 @@ from utils.rendering import render_mesh_helper
 from psbody.mesh import Mesh
 from utils.model_serializer import ModelSerializer
 
+MIN_MOTION = [-0.00916614, -0.02674509, -0.0166305]
+MAX_MOTION = [0.01042878, 0.01583716, 0.01325295]
 
+
+def nomalize_motion(input):
+    
 def split_given_size(a, size):
     return np.split(a, np.arange(size, len(a), size))
 
@@ -106,13 +110,16 @@ class Trainer(object):
 
         print("Training Done!")
 
-    def _prepare_data(self, batch_data_dict, device):
+    def _prepare_data(self, batch_data_dict, device, normalize=True):
         batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
 
         #======= Prepare the GT face motion ==========#
         batch_data_dict['target_face_motion'] = \
             batch_data_dict['face_vertices'] - np.expand_dims(batch_data_dict['face_template'], axis=1)
         batch_data_dict['target_face_motion'] = batch_data_dict['target_face_motion'].reshape(batch_size, seq_len, -1)
+
+        if normalize:
+            min_value
 
         #======== Prepare the subject idx ===========#
         subject_idx = np.expand_dims(np.stack(batch_data_dict['subject_idx']), -1)
