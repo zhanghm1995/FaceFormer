@@ -206,7 +206,7 @@ class FaceFormerV2(nn.Module):
             _type_: shifted target with a inserted start token
         """
         ret = torch.zeros_like(target)
-        ret[1:, ...] = target[1:, ...]
+        ret[1:, ...] = target[:-1, ...]
         return ret
 
     def encode(self, x: Tensor):
@@ -223,7 +223,8 @@ class FaceFormerV2(nn.Module):
         enc_output = self.encoder({"waveforms": x})
         return enc_output.permute(1, 0, 2)
 
-    def decode(self, y: Tensor, speaker_id: Tensor, encoded_x: Tensor) -> Tensor:
+    def decode(self, y: Tensor, speaker_id: Tensor, encoded_x: Tensor,
+               shift_target_tright=True) -> Tensor:
         """_summary_
 
         Args:
@@ -235,7 +236,9 @@ class FaceFormerV2(nn.Module):
         """
         ## facial motion target decoder
         y = y.permute(1, 0, 2) # to (Sy, B, ...)
-        y = self._generate_shifted_target(y)
+        
+        if shift_target_tright:
+            y = self._generate_shifted_target(y)
 
         speaker_id = speaker_id.permute(1, 0, 2)
 
@@ -256,7 +259,7 @@ class FaceFormerV2(nn.Module):
         
         output = self.decode(face_seq, speaker_id, encoded_x) # output: (Sy, B, C)
 
-        output = torch.permute(output, (1, 0, 2))
+        output = torch.permute(output, (1, 0, 2)) # to (B, Sy, C)
         return output 
 
     def inference(self, data_dict):
@@ -272,7 +275,7 @@ class FaceFormerV2(nn.Module):
 
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
-            dec_output = self.decode(y, speaker_id[:, :seq_idx], encoded_x) # in (Sy, B, C)
+            dec_output = self.decode(y, speaker_id[:, :seq_idx], encoded_x, shift_target_tright=False) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return output
 
