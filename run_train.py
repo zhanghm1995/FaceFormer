@@ -108,7 +108,7 @@ class Trainer(object):
                     'valid_loss_min': 1000.0,
                     'state_dict': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
-                }
+                }   
                 self.model_serializer.save(checkpoint, False)
                 print(f"Saving checkpoint in epoch {epoch}")
 
@@ -199,16 +199,16 @@ class Trainer(object):
 
         batch_size, seq_len = pred_facial_motion.shape[:2]
         
-        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, -1, 3))
+        pred_facial_motion = torch.reshape(pred_facial_motion, (batch_size, seq_len, -1, 3)).cpu().detach().numpy()
 
         pred_facial_motion = denormalize_motion(pred_facial_motion)
         
-        pred_facial_vertices = data_dict['face_template'].unsqueeze(1) + pred_facial_motion # (B, S, 5023, 3)
+        pred_facial_vertices = data_dict['face_template'].unsqueeze(1).cpu().detach().numpy() + pred_facial_motion # (B, S, 5023, 3)
 
         ## Reshape to (B*S, 5023, 3)
-        pred_facial_vertices = torch.reshape(pred_facial_vertices, (-1, 5023, 3))
+        pred_facial_vertices = np.reshape(pred_facial_vertices, (-1, 5023, 3))
         
-        return pred_facial_vertices.cpu().detach().numpy()
+        return pred_facial_vertices
 
     def _save(self):
         pass
