@@ -75,3 +75,6 @@ faceformer_decoder:
   d_feed_forward: 1024
 
   d_motion_decoder: 15069 # 5023*3
+
+log:
+  checkpoint_dir: training_exp

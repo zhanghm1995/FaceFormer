@@ -45,8 +45,8 @@ class Trainer(object):
 
         self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
         
-        self.criterion = nn.MSELoss()
-        # self.criterion = nn.SmoothL1Loss()
+        # self.criterion = nn.MSELoss()
+        self.criterion = nn.SmoothL1Loss()
 
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
@@ -55,16 +55,32 @@ class Trainer(object):
             osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"),
             osp.join(self.config['checkpoint_dir'], "best_model.ckpt"))
     
+    def restore(self, load_latest=True, load_best=False):
+        start_epoch, valid_loss_min = 1, 1000.0
+
+        if load_best:
+            start_epoch, valid_loss_min = self.model_serializer.load_ckp(
+                osp.join(self.config['checkpoint_dir'], "best_model.ckpt"), self.model, self.optimizer)
+        elif load_latest:
+            start_epoch, valid_loss_min = self.model_serializer.load_ckp(
+                osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"), self.model, self.optimizer)
+            print(f"[INFO] Load latest checkpoint start_epoch: {start_epoch}")
+        else:
+            print("[WARNING] Train from scratch!")
+        return start_epoch, valid_loss_min
+
     def train(self):
         num_train_batches = self.batcher.get_num_batches(self.config['batch_size']) + 1
         global_step = 0
         
-        for epoch in range(1, self.config['epoch_num'] + 1):
+        start_epoch, _ = self.restore(load_latest=True)
+
+        for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             for iter in range(num_train_batches):
                 loss = self._training_step()
                 
                 print(f"Epoch: {epoch} | Iter: {iter} | Global Step: {global_step} | Loss: {loss}")
-                self.tb_writer.add_scalar("traing_loss", loss, global_step)
+                self.tb_writer.add_scalar("traing_loss", loss.item(), global_step)
                 # if iter % 100 == 0:
                 #     val_loss = self._validation_step()
                 #     logging.warning("Validation loss: %.6f" % val_loss)
@@ -80,12 +96,15 @@ class Trainer(object):
                     'optimizer': self.optimizer.state_dict(),
                 }
                 self.model_serializer.save(checkpoint, False)
+                print(f"Saving checkpoint in epoch {epoch}")
 
-            if epoch % 1 == 0:
+            if epoch % 4 == 0:
                 self._render_sequences(out_folder=osp.join(self.config['checkpoint_dir'], 'videos', f'training_epoch_{epoch}_iter_{iter}'), 
                                        data_specifier='training')
             #     self._render_sequences(out_folder=os.path.join(self.config['checkpoint_dir'], 'videos', 
             #                                                    'validation_epoch_%d_iter_%d' % (epoch, iter)), data_specifier='validation')
+
+        print("Training Done!")
 
     def _prepare_data(self, batch_data_dict, device):
         batch_size, seq_len = batch_data_dict['face_vertices'].shape[:2]
