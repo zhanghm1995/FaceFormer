@@ -334,9 +334,7 @@ class DataHandler:
 
             for subj, seq in subject_sequence_list:
                 data_dict = {}
-                frame_array_indices = []
-                for frame, array_idx in self.data2array_verts[subj][seq].items():
-                    frame_array_indices.append(array_idx)
+                frame_array_indices = list(self.data2array_verts[subj][seq].values())
 
                 data_dict['face_vertices'] = self.face_vert_mmap[frame_array_indices] # (N, 5023, 3)
                 data_dict['face_template'] = self.templates_data[subj] # (5023, 3)
