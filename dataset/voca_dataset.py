@@ -297,7 +297,7 @@ class DataHandler:
             return
 
         st = random.getstate()
-        random.seed(888)
+        random.seed(222)
         sub_seq_list = random.sample(self.all_training_sequences, len(self.all_training_sequences))
         random.setstate(st)
 
@@ -313,7 +313,9 @@ class DataHandler:
             raw_audio = []
 
             for subj, seq in subject_sequence_list:
-                frame_array_indices = sorted(self.data2array_verts[subj][seq].keys())
+                frame_array_indices = []
+                for frame, array_idx in self.data2array_verts[subj][seq].items():
+                    frame_array_indices.append(array_idx)
                 face_vertices.append(self.face_vert_mmap[frame_array_indices])
                 face_templates.append(self.templates_data[subj])
                 subject_idx.append(self.convert_training_subj2idx(subj))
@@ -332,7 +334,10 @@ class DataHandler:
 
             for subj, seq in subject_sequence_list:
                 data_dict = {}
-                frame_array_indices = sorted(self.data2array_verts[subj][seq].keys())
+                frame_array_indices = []
+                for frame, array_idx in self.data2array_verts[subj][seq].items():
+                    frame_array_indices.append(array_idx)
+
                 data_dict['face_vertices'] = self.face_vert_mmap[frame_array_indices] # (N, 5023, 3)
                 data_dict['face_template'] = self.templates_data[subj] # (5023, 3)
                 data_dict['subject_idx'] = self.convert_training_subj2idx(subj) # number
