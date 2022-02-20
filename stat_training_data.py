@@ -13,7 +13,34 @@ import numpy as np
 import pickle
 from dataset.voca_dataset import DataHandler, load_from_config, invert_data2array
 
+
+def stat_max_sequence_length(config):
+    face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
+    face_templates_path = load_from_config(config, 'templates_path')
+    raw_audio_path = load_from_config(config, 'raw_audio_path')
+    data2array_verts_path = load_from_config(config, 'data2array_verts_path')
+
+    face_vert_mmap = np.load(face_verts_mmaps_path, mmap_mode='r') # (N, 5023, 3)
+    templates_data = pickle.load(open(face_templates_path, 'rb'), encoding='latin1')
+    raw_audio = pickle.load(open(raw_audio_path, 'rb'), encoding='latin1')
+
+    data2array_verts = pickle.load(open(data2array_verts_path, 'rb'))
+
+    num_frames_list = []
+    for subj, value in tqdm(data2array_verts.items()):
+        for seq, index in value.items():
+            curr_seq_indices = list(index.values())
+            num_frames_list.append(len(curr_seq_indices))
+    print(len(num_frames_list), max(num_frames_list))
+            
+
 def stat_voca_training_data(config):
+    """Statistic the VOCA training data to get 
+       the minimum and maximum facial vertices value
+
+    Args:
+        config (dict): config parameters
+    """
     face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
     face_templates_path = load_from_config(config, 'templates_path')
     raw_audio_path = load_from_config(config, 'raw_audio_path')
@@ -31,7 +58,7 @@ def stat_voca_training_data(config):
         curr_subj_template = templates_data[subj] # (5023, 3)
 
         for seq, index in value.items():
-            curr_seq_indices = sorted(index.values())
+            curr_seq_indices = list(index.values())
             start_idx, end_idx = min(curr_seq_indices), max(curr_seq_indices) + 1
             curr_seq_vertices = face_vert_mmap[start_idx:end_idx, ...] # (N, 5023, 3)
             curr_seq_vertiecs_motion = curr_seq_vertices - np.expand_dims(curr_subj_template, axis=0)
@@ -90,6 +117,9 @@ if __name__ == "__main__":
     from omegaconf import OmegaConf
 
     config = OmegaConf.load('./config/config.yaml')
+
+    stat_max_sequence_length(config['dataset'])
+    exit(0)
 
     test_normalize(config['dataset'])
 

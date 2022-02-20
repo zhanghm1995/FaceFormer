@@ -40,6 +40,13 @@ def _prepare_data(batch_data_dict):
         batch_data_dict['subject_idx'] = one_hot(torch.from_numpy(subject_idx.repeat(seq_len, axis=-1))).to(torch.float32)
 
 
+def test_voca_dataset_get_item(config):
+    batcher = get_dataset(config)
+    
+    data_list = batcher.get_training_batch(8)
+    print(len(data_list))
+
+
 def test_voca_dataset_get_ordered_sequence(config):
     batcher = get_dataset(config)
     data_list = batcher.get_training_sequences_in_order(2)
@@ -145,7 +152,8 @@ def main2():
     from omegaconf import OmegaConf
 
     config = OmegaConf.load('./config/config.yaml')
-    test_voca_dataset_get_ordered_sequence(config['dataset'])
+    test_voca_dataset_get_item(config['dataset'])
+    # test_voca_dataset_get_ordered_sequence(config['dataset'])
     
     # test_voca_dataset(config['dataset'])
     # test_voca_dataset_get_sequences(config['dataset'])

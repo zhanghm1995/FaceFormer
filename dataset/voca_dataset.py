@@ -14,6 +14,7 @@ import random
 import torch
 import numpy as np
 from tqdm import tqdm
+from torch.nn.utils.rnn import pad_sequence
 
 
 def get_sub_list_randomly(input_list, sub_list_len):
@@ -61,8 +62,13 @@ class DataHandler:
         self._load_data(config)
         self._get_all_sequences_list()
         
-        print("Initialize training, validation, and test indices")
-        self._init_indices()
+        self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
+        self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
+
+        self._init_training_set()
+        print("===================== End loading data =====================")
+        # print("Initialize training, validation, and test indices")
+        # self._init_indices()
 
     def _get_all_sequences_list(self):
         """Get all training, validation and testing sequences
@@ -88,11 +94,101 @@ class DataHandler:
               f"number of all validation sequence: {len(self.all_validation_sequences)}",
               f"number of all testing sequence: {len(self.all_testing_sequences)}")
 
+    def get_item(self, batch_size):
+        def get_start_idx_randomly(input_list, need_length):
+            sub_list = list(range(len(input_list) - need_length))
+
+            start_idx = random.sample(sub_list, k=1)[0]
+            return start_idx
+
+        output_data_list = []
+        total_count = 0
+        while(total_count < batch_size):
+            ## 1) randomly choose a subject and a sequence
+            subj = random.choices(self.training_subjects, k=1)[0]
+            seq = random.choices(self.training_sequences, k=1)[0]
+            
+            ## 2) randomly choose a start index
+            frame_array_indices = list(self.data2array_verts[subj][seq].values()) # list
+
+            raw_audio = self.raw_audio[subj][seq] # dictionary
+
+            audio_sample_rate = raw_audio['sample_rate']
+
+            start_idx = get_start_idx_randomly(frame_array_indices, self.sequence_length)
+            end_idx = start_idx + self.sequence_length
+
+            curr_frame_indices = frame_array_indices[start_idx:end_idx]
+
+            audio_start_idx = round(start_idx / 60.0 * audio_sample_rate)
+            audio_end_idx = round(end_idx / 60.0 * audio_sample_rate)
+
+            curr_raw_audio = raw_audio['audio'][audio_start_idx:audio_end_idx]
+
+            sequence_data_dict = {}
+            sequence_data_dict['face_vertices'] = self.face_vert_mmap[curr_frame_indices]
+            sequence_data_dict['face_template'] = self.templates_data[subj]
+            sequence_data_dict['subject_idx'] = self.convert_training_subj2idx(subj)
+            sequence_data_dict['raw_audio'] = curr_raw_audio
+
+            output_data_list.append(sequence_data_dict)
+            total_count += 1
+        print(output_data_list)
+
+    def _init_training_set(self):
+        """Use the whole sequence as a single sequence
+
+        Args:
+            batch_size (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        self.training_indices = self.all_training_sequences
+        self.validation_indices = self.all_validation_sequences
+        self.testing_indices = self.all_testing_sequences
+
+    def get_item_whole_sequence(self, indices):
+        batched_raw_audio, batched_face_vertices = [], []
+        batched_face_template, batched_subject_idx = [], []
+
+        num_frames_list, audio_lengths_list = [], []
+        for item in indices:
+            subj, seq = item
+            
+            frame_array_indices = list(self.data2array_verts[subj][seq].values())
+            num_frames = len(frame_array_indices)
+            num_frames_list.append(num_frames)
+
+            curr_seq_face_vertices = self.face_vert_mmap[frame_array_indices] # (N, 5023, 3)
+            curr_seq_face_template = self.templates_data[subj] # (5023, 3)
+            curr_subject_idx = self.convert_training_subj2idx(subj) # scalar
+
+            audio_end_idx = round(num_frames / 60.0 * 22000)
+            curr_raw_audio = self.raw_audio[subj][seq]['audio'][:audio_end_idx] # (M, )
+            audio_lengths_list.append(len(curr_raw_audio))
+
+            batched_face_vertices.append(torch.from_numpy(curr_seq_face_vertices))
+            batched_face_template.append(torch.from_numpy(curr_seq_face_template))
+            batched_subject_idx.append(curr_subject_idx)
+            batched_raw_audio.append(torch.from_numpy(curr_raw_audio))
+        
+        batch_data_dict = {}
+        batch_data_dict['face_vertices'] = pad_sequence(batched_face_vertices, batch_first=True) # (B, N, 5023, 3)
+        batch_data_dict['face_template'] = pad_sequence(batched_face_template, batch_first=True) # (B, 5023, 3)
+        batch_data_dict['subject_idx'] = np.stack(batched_subject_idx) # (B, )
+        batch_data_dict['raw_audio'] = pad_sequence(batched_raw_audio, batch_first=True)
+        batch_data_dict['face_vertices_length'] = np.stack(num_frames_list)
+        batch_data_dict['raw_audio_length'] = np.stack(audio_lengths_list)
+ 
+        return batch_data_dict
+
+    def __len__(self):
+        return len(self.training_indices)
+
     def _init_indices(self):
         """Initialize the indices for FaceFormer training
         """
-        self.training_idx2subj = {idx: self.training_subjects[idx] for idx in np.arange(len(self.training_subjects))}
-        self.training_subj2idx = {self.training_idx2subj[idx]: idx for idx in self.training_idx2subj.keys()}
 
         def get_indices(input_sequences):
             output = []

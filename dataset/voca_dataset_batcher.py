@@ -57,7 +57,7 @@ class Batcher(Dataset):
             if len(batch_indices) != batch_size:
                 self.current_state = 0
                 return self.get_training_batch(batch_size)
-            return self.data_handler.slice_data(batch_indices)
+            return self.data_handler.get_item_whole_sequence(batch_indices)
 
     def get_validation_batch(self, batch_size):
         """
