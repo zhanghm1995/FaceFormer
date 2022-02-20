@@ -31,7 +31,7 @@ sequence_for_validation: sentence21 sentence22 sentence23 sentence24 sentence25 
 subject_for_testing: FaceTalk_170809_00138_TA FaceTalk_170731_00024_TA 
 sequence_for_testing: sentence21 sentence22 sentence23 sentence24 sentence25 sentence26 sentence27 sentence28 sentence29 sentence30 sentence31 sentence32 sentence33 sentence34 sentence35 sentence36 sentence37 sentence38 sentence39 sentence40
 
-batch_size: 1
+batch_size: 2
 learning_rate: 1e-4
 decay_rate: 1.0
 epoch_num: 200

@@ -22,7 +22,7 @@ def one_hot(x):
         x (Tensor): Bxseq_len dimension
 
     Returns:
-        [type]: Bxseq_lenx8
+        [Tensor]: Bxseq_lenx8
     """
     x = x.unsqueeze(-1)
     condition = torch.zeros(x.shape[0], x.shape[1], 8).scatter_(2, x.type(torch.LongTensor), 1)

@@ -98,10 +98,7 @@ class FaceFormerEncoder(nn.Module):
         nn.init.uniform_(self.final_projection.weight, -initrange, initrange)
         nn.init.zeros_(self.final_projection.bias)
 
-    def forward(self, data_dict):
-        waveforms = data_dict['waveforms']
-        lengths = None
-        
+    def forward(self, waveforms, lengths=None):
         ## Extract the audio features
         x, lengths = self.wav2vec2_model.feature_extractor(waveforms, lengths)
 
@@ -198,6 +195,11 @@ class FaceFormerV2(nn.Module):
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
     
+    def _generate_key_mapping_mask(self, trg, lengths):
+        max_len, batch_size , _ = trg.shape
+        mask = torch.arange(max_len, device=lengths.device).expand(batch_size, max_len) >= lengths[:, None]
+        return mask
+
     def _generate_shifted_target(self, target: Tensor):
         """_summary_
 
@@ -211,7 +213,7 @@ class FaceFormerV2(nn.Module):
         ret[1:, ...] = target[:-1, ...]
         return ret
 
-    def encode(self, x: Tensor):
+    def encode(self, x: Tensor, lengths=None):
         """_summary_
 
         Args:
@@ -222,11 +224,14 @@ class FaceFormerV2(nn.Module):
         """
         ## resample the audio sample rate
         x = torchaudio.functional.resample(x, 22000, 16000)
-        enc_output = self.encoder({"waveforms": x})
+        if lengths is not None:
+            # rescale the lengths
+            lengths = (lengths * 16000 / 22000.0).to(lengths.dtype)
+        enc_output = self.encoder(x, lengths)
         return enc_output.permute(1, 0, 2)
 
     def decode(self, y: Tensor, speaker_id: Tensor, encoded_x: Tensor,
-               shift_target_tright=True) -> Tensor:
+               trg_lengths=None, shift_target_tright=True) -> Tensor:
         """_summary_
 
         Args:
@@ -247,20 +252,22 @@ class FaceFormerV2(nn.Module):
 
         trg_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
 
-        output = self.decoder(y, speaker_id, encoded_x, trg_mask)
+        output = self.decoder(y, speaker_id, encoded_x, tgt_mask=trg_mask,
+                              tgt_key_padding_mask=self._generate_key_mapping_mask(y, trg_lengths))
 
         return output
 
     def forward(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio'] # (B, 22000)
-        encoded_x = self.encode(audio_seq)
+        encoded_x = self.encode(audio_seq, lengths=data_dict['raw_audio_lengths'])
 
         ## facial motion target decoder
         face_seq = data_dict['target_face_motion'] # (B, Sy, C)
         speaker_id = data_dict['subject_idx'] # (B, Sy, 8)
         
-        output = self.decode(face_seq, speaker_id, encoded_x) # output: (Sy, B, C)
+        output = self.decode(face_seq, speaker_id, encoded_x,
+                             trg_lengths=data_dict['face_vertices_lengths']) # output: (Sy, B, C)
 
         output = torch.permute(output, (1, 0, 2)) # to (B, Sy, C)
         return output 

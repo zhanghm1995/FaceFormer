@@ -176,10 +176,12 @@ class DataHandler:
         batch_data_dict = {}
         batch_data_dict['face_vertices'] = pad_sequence(batched_face_vertices, batch_first=True) # (B, N, 5023, 3)
         batch_data_dict['face_template'] = pad_sequence(batched_face_template, batch_first=True) # (B, 5023, 3)
+        batch_data_dict['target_face_motion'] = \
+            batch_data_dict['face_vertices'] - batch_data_dict['face_template'].unsqueeze(1) # (B, Sy, 5023, 3)
         batch_data_dict['subject_idx'] = np.stack(batched_subject_idx) # (B, )
         batch_data_dict['raw_audio'] = pad_sequence(batched_raw_audio, batch_first=True)
-        batch_data_dict['face_vertices_length'] = np.stack(num_frames_list)
-        batch_data_dict['raw_audio_length'] = np.stack(audio_lengths_list)
+        batch_data_dict['face_vertices_lengths'] = np.stack(num_frames_list)
+        batch_data_dict['raw_audio_lengths'] = np.stack(audio_lengths_list)
  
         return batch_data_dict
 
