@@ -15,3 +15,19 @@ def get_dataset(config):
     data_handler = DataHandler(config)
     batcher = Batcher(data_handler)
     return batcher
+
+def get_2d_dataset(config, split):
+    from .face_image_dataset import FaceImageDataset
+    from torch.utils.data import DataLoader
+
+    dataset = FaceImageDataset(data_root=config['data_root'], split=split)
+    data_loader = DataLoader(
+        dataset,
+        batch_size=config['batch_size'],
+        shuffle=(split=="train"),
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+    )
+    return data_loader
+    
