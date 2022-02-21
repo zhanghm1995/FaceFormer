@@ -196,6 +196,17 @@ class FaceFormerV2(nn.Module):
         return mask
     
     def _generate_key_mapping_mask(self, trg, lengths):
+        """_summary_
+
+        Args:
+            trg (Tensor): (Sy, B, C)
+            lengths (Tensor): (B, )
+
+        Returns:
+            Tensor: (B, Sy)
+        """
+        if lengths is None:
+            return None
         max_len, batch_size , _ = trg.shape
         mask = torch.arange(max_len, device=lengths.device).expand(batch_size, max_len) >= lengths[:, None]
         return mask
@@ -252,10 +263,11 @@ class FaceFormerV2(nn.Module):
 
         trg_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
 
+        tgt_key_padding_mask = self._generate_key_mapping_mask(y, trg_lengths)
         output = self.decoder(y, speaker_id, encoded_x, tgt_mask=trg_mask,
-                              tgt_key_padding_mask=self._generate_key_mapping_mask(y, trg_lengths))
+                              tgt_key_padding_mask=tgt_key_padding_mask)
 
-        return output
+        return output, tgt_key_padding_mask
 
     def forward(self, data_dict):
         ## audio source encoder
@@ -266,16 +278,18 @@ class FaceFormerV2(nn.Module):
         face_seq = data_dict['target_face_motion'] # (B, Sy, C)
         speaker_id = data_dict['subject_idx'] # (B, Sy, 8)
         
-        output = self.decode(face_seq, speaker_id, encoded_x,
-                             trg_lengths=data_dict['face_vertices_lengths']) # output: (Sy, B, C)
+        output, output_mask = self.decode(face_seq, speaker_id, encoded_x,
+                                          trg_lengths=data_dict['face_vertices_lengths']) # output: (Sy, B, C)
 
         output = torch.permute(output, (1, 0, 2)) # to (B, Sy, C)
-        return output 
+
+        output_mask = ~output_mask[..., None]
+        return torch.mul(output, output_mask.type(torch.float)) 
 
     def inference(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio']
-        encoded_x = self.encode(audio_seq)
+        encoded_x = self.encode(audio_seq, lengths=None)
 
         speaker_id = data_dict['subject_idx'] # (B, Sy, 8)
 
@@ -285,7 +299,7 @@ class FaceFormerV2(nn.Module):
 
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
-            dec_output = self.decode(y, speaker_id[:, :seq_idx], encoded_x, shift_target_tright=False) # in (Sy, B, C)
+            dec_output, _ = self.decode(y, speaker_id[:, :seq_idx], encoded_x, shift_target_tright=False) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return output
     

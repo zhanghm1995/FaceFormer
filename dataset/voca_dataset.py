@@ -148,7 +148,7 @@ class DataHandler:
         self.validation_indices = self.all_validation_sequences
         self.testing_indices = self.all_testing_sequences
 
-    def get_item_whole_sequence(self, indices):
+    def get_item_whole_sequence(self, indices, wo_padding=True):
         batched_raw_audio, batched_face_vertices = [], []
         batched_face_template, batched_subject_idx = [], []
 
@@ -174,15 +174,28 @@ class DataHandler:
             batched_raw_audio.append(torch.from_numpy(curr_raw_audio))
         
         batch_data_dict = {}
-        batch_data_dict['face_vertices'] = pad_sequence(batched_face_vertices, batch_first=True) # (B, N, 5023, 3)
+        batch_data_dict['face_vertices'] = pad_sequence(batched_face_vertices, batch_first=True) # (B, Sy, 5023, 3)
         batch_data_dict['face_template'] = pad_sequence(batched_face_template, batch_first=True) # (B, 5023, 3)
         batch_data_dict['target_face_motion'] = \
             batch_data_dict['face_vertices'] - batch_data_dict['face_template'].unsqueeze(1) # (B, Sy, 5023, 3)
         batch_data_dict['subject_idx'] = np.stack(batched_subject_idx) # (B, )
-        batch_data_dict['raw_audio'] = pad_sequence(batched_raw_audio, batch_first=True)
-        batch_data_dict['face_vertices_lengths'] = np.stack(num_frames_list)
-        batch_data_dict['raw_audio_lengths'] = np.stack(audio_lengths_list)
- 
+        batch_data_dict['raw_audio'] = pad_sequence(batched_raw_audio, batch_first=True) # (B, Sx)
+        batch_data_dict['face_vertices_lengths'] = np.stack(num_frames_list) # (B, )
+        batch_data_dict['raw_audio_lengths'] = np.stack(audio_lengths_list) # (B, )
+
+        if wo_padding:
+            min_length = min(num_frames_list)
+            batch_data_dict['face_vertices'] = batch_data_dict['face_vertices'][:, :min_length, ...]
+            batch_data_dict['target_face_motion'] = batch_data_dict['target_face_motion'][:, :min_length, ...]
+
+            audio_end_idx = round(min_length / 60.0 * 22000)
+            batch_data_dict['raw_audio'] =  batch_data_dict['raw_audio'][:, :audio_end_idx]
+
+            min_length_list = [min_length] * len(num_frames_list)
+            batch_data_dict['face_vertices_lengths'] = np.stack(min_length_list)
+            min_audio_length_list = [audio_end_idx] * len(num_frames_list)
+            batch_data_dict['raw_audio_lengths'] = np.stack(min_audio_length_list) # (B, )
+
         return batch_data_dict
 
     def __len__(self):
