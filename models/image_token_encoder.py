@@ -11,11 +11,11 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import functional as F
-from .conv import Conv2dTranspose, Conv2d, nonorm_Conv2d
+from conv import Conv2dTranspose, Conv2d, nonorm_Conv2d
 
 
 class ImageTokenEncoder(nn.Module):
-    def __init__(self, in_ch=6):
+    def __init__(self, in_ch=3):
         super(ImageTokenEncoder, self).__init__()
 
         self.face_encoder_blocks = nn.ModuleList([
@@ -95,8 +95,16 @@ class ImageTokenEncoder(nn.Module):
             nn.Sigmoid()) 
 
     def encode(self, input: Tensor):
+        """Encode the batched input image sequences into tokens
+
+        Args:
+            input (Tensor): (B, T, 3, H, W)
+
+        Returns:
+            (Tensor): (B, T, C)
+        """
         # input (B, T, C, H, W)
-        C, H, W = input.shape[-3:]
+        B, T, C, H, W = input.shape
         input = input.reshape((-1, C, H, W))
 
         feats = []
@@ -104,8 +112,11 @@ class ImageTokenEncoder(nn.Module):
         for f in self.face_encoder_blocks:
             x = f(x)
             feats.append(x)
-        return feats[-1]
         
+        ## Convert to (B, T, C)
+        output = feats[-1]
+        output = output.reshape(B, T, -1)
+        return output
 
     def forward(self, audio_sequences, face_sequences):
         # face_sequences = (B, C, T, 96, 96)
@@ -147,3 +158,11 @@ class ImageTokenEncoder(nn.Module):
             outputs = x
             
         return outputs
+
+
+if __name__ == "__main__":
+    image_token_encoder = ImageTokenEncoder()
+
+    input = torch.randn(8, 100, 3, 96, 96)
+    output = image_token_encoder.encode(input)
+    print(output.shape)
