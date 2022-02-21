@@ -22,6 +22,7 @@ from torch import optim
 import subprocess
 from subprocess import call
 from tqdm import tqdm
+from omegaconf import OmegaConf
 from config_parser import get_configs
 from dataset import get_dataset
 from test_voca_dataset import one_hot
@@ -30,6 +31,7 @@ from utils.rendering import render_mesh_helper
 from psbody.mesh import Mesh
 from utils.model_serializer import ModelSerializer
 from utils.pytorch3d_renderer import FaceRenderer
+from utils.loss import WeightedLoss
 
 
 MIN_MOTION = np.array([-0.00916614, -0.02674509, -0.0166305])
@@ -66,14 +68,13 @@ class Trainer(object):
         self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
         
         self.criterion = nn.MSELoss(reduction='sum')
+        # self.criterion = WeightedLoss()
         # self.criterion = nn.SmoothL1Loss()
-
-        from torch.utils.tensorboard import SummaryWriter
-        self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
         
         self.model_serializer = ModelSerializer(
             osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"),
             osp.join(self.config['checkpoint_dir'], "best_model.ckpt"))
+
     
     def restore(self, load_latest=True, load_best=False):
         start_epoch, valid_loss_min = 1, 1000.0
@@ -90,11 +91,15 @@ class Trainer(object):
         return start_epoch, valid_loss_min
 
     def train(self):
+        
+        from torch.utils.tensorboard import SummaryWriter
+        self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
+
         num_train_batches = self.batcher.get_num_batches(self.config['batch_size']) + 1
-        global_step = 0
         
         start_epoch, _ = self.restore(load_latest=True)
 
+        global_step = 0
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             for iter in range(num_train_batches):
                 loss = self._training_step()
@@ -108,9 +113,10 @@ class Trainer(object):
                 
                 global_step += 1
 
-            if epoch % 100 == 0:
+            if epoch % 30 == 0:
                 checkpoint = {
                     'epoch': epoch + 1,
+                    'global_step': global_step + 1,
                     'valid_loss_min': 1000.0,
                     'state_dict': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -146,9 +152,6 @@ class Trainer(object):
 
         self._prepare_data(batch_data_dict, self.device)
 
-
-        print(torch.min(batch_data_dict['target_face_motion']), torch.max(batch_data_dict['target_face_motion']))
-
         ## forward
         pred_facial_motion = self.model.inference(batch_data_dict)
         loss = self.criterion(pred_facial_motion, batch_data_dict['target_face_motion'])
@@ -159,8 +162,6 @@ class Trainer(object):
 
         pred_facial_motion = denormalize(pred_facial_motion)
         target_facial_motion = denormalize(batch_data_dict['target_face_motion'])
-        print(np.min(pred_facial_motion), np.max(pred_facial_motion), np.min(target_facial_motion), np.max(target_facial_motion))
-
         pred_facial_vertices = batch_data_dict['face_template'].cpu().numpy() + pred_facial_motion[0] # (S, 5023, 3)
 
         # face_vertex = batch_data_dict['face_vertices'][0].type(torch.FloatTensor)
@@ -178,7 +179,7 @@ class Trainer(object):
         rendered_image = np.concatenate(rendered_image, axis=0)
         print(rendered_image.shape)
 
-        output_video_fname = osp.join("./output", f"seq38_infer_with_4_train.mp4")
+        output_video_fname = osp.join("./output", f"FaceTalk_170728_03272_TA_seq01_infer_wo_padding_all_data.mp4")
         
         tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=osp.dirname(output_video_fname))
         wavfile.write(tmp_audio_file.name, 22000, raw_audio)
@@ -227,7 +228,8 @@ class Trainer(object):
         self.optimizer.zero_grad()
         pred_facial_motion = self.model(batch_data_dict)
 
-        loss = self.criterion(pred_facial_motion, batch_data_dict['target_face_motion'])
+        # loss = self.criterion(pred_facial_motion, batch_data_dict['target_face_motion'])
+        loss = self.criterion(pred_facial_motion, batch_data_dict['target_face_motion']) / 100.0
 
         loss.backward()
         self.optimizer.step()
@@ -395,16 +397,19 @@ class Trainer(object):
         subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def main():
-    from omegaconf import OmegaConf
-
+    #========= Loading Config =========#
     config = OmegaConf.load('./config/config.yaml')
 
     #========= Loading Dataset =========#
     batcher = get_dataset(config['dataset'])
 
+    os.makedirs(config['checkpoint_dir'], exist_ok=True)
+
+    OmegaConf.save(config, osp.join(config['checkpoint_dir'], "config.yaml"))
+
     #========= Create Model ============#
     model = Trainer(config, batcher)
-    model.test()
+    model.train()
 
 
 if __name__ == "__main__":
