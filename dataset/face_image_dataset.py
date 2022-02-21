@@ -31,12 +31,16 @@ class FaceImageDataset(Dataset):
     Args:
         Dataset (_type_): _description_
     """
-    def __init__(self, data_root, data_infos, split, **kwargs) -> None:
+    def __init__(self, data_root, split, **kwargs) -> None:
         super().__init__()
-        
+
+        self.data_root = data_root
+
         self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
 
-        self.fetch_length = 100        
+        self.fetch_length = kwargs.get("fetch_length", 100)
+
+        self.build_dataset()        
 
 
     def build_dataset(self):
@@ -46,10 +50,10 @@ class FaceImageDataset(Dataset):
 
         total_length = 0
         for video_dir in self.all_videos_dir:
-            all_images_path = sorted(glob(osp.join(video_dir, "face_image", "*.jpg")))
+            all_images_path = sorted(glob(osp.join(self.data_root, video_dir, "face_image", "*.jpg")))
             num_frames = len(all_images_path)
 
-            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, strid=25)
+            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, stride=25)
             self.all_sliced_indices.append(valid_indices)
 
             total_length += len(valid_indices)
@@ -69,7 +73,7 @@ class FaceImageDataset(Dataset):
         return main_idx, sub_idx
 
     def __len__(self):
-        return len(self.all_sliced_indices)
+        return sum([len(x) for x in self.all_sliced_indices])
 
     def __getitem__(self, index):
         main_idx, sub_idx = self._get_data(index)
@@ -79,14 +83,22 @@ class FaceImageDataset(Dataset):
 
         img_list = []
         for idx in range(start_idx, start_idx + self.fetch_length):
-            img_path = osp.join(choose_video, "face_image", f"{idx:06d}.jpg")
+            img_path = osp.join(self.data_root, choose_video, "face_image", f"{idx:06d}.jpg")
             img = cv2.imread(img_path)
             img_list.append(img)
         
-        img_seq = np.stack(img_seq)
+        img_seq = np.stack(img_list)
         return img_seq
             
 
 
-        
+if __name__ == "__main__":
+    data_root = "/home/haimingzhang/Research/Face/FACIAL/video_preprocessed/id00001"
+    split = "train"
+    dataset = FaceImageDataset(data_root, split)
+    print(len(dataset))
+
+    data = dataset[180]
+    print(data.shape)
+
 
