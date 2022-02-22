@@ -14,7 +14,7 @@ import numpy as np
 from glob import glob
 import cv2
 from torch.utils.data import Dataset
-
+import librosa
 
 def get_all_valid_indices(total_length, fetch_length, stride) -> List:
     idx_list = list(range(0, total_length - fetch_length, stride))
@@ -39,6 +39,8 @@ class FaceImageDataset(Dataset):
         self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
 
         self.fetch_length = kwargs.get("fetch_length", 100)
+        self.video_fps = kwargs.get("video_fps", 25)
+        self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
 
         self.build_dataset()        
 
@@ -60,6 +62,15 @@ class FaceImageDataset(Dataset):
             self.length_token_list.append(total_length)
     
     def _get_data(self, index):
+        """Get the seperate index location from the total index
+
+        Args:
+            index (int): index in all avaible sequeneces
+        
+        Returns:
+            main_idx (int): index specifying which video
+            sub_idx (int): index specifying what the start index in this video
+        """
         def fetch_data(length_list, index):
             assert index < length_list[-1]
             temp_idx = np.array(length_list) > index
@@ -74,12 +85,25 @@ class FaceImageDataset(Dataset):
 
     def __len__(self):
         return sum([len(x) for x in self.all_sliced_indices])
+    
+    def _slice_raw_audio(self, choose_video, sub_idx):
+        audio_path = osp.join(self.data_root, choose_video, f"{osp.basename(choose_video)}.wav")
+        
+        start_idx, end_idx = sub_idx, sub_idx + self.fetch_length
+        audio_start_idx = round(start_idx / self.video_fps * self.audio_sample_rate)
+        audio_end_idx = round(end_idx / self.video_fps * self.audio_sample_rate)
+        
+        whole_audio_data = librosa.core.load(audio_path, sr=self.audio_sample_rate)[0]
+        fetch_audio_data = whole_audio_data[audio_start_idx:audio_end_idx]
+        return fetch_audio_data
 
     def __getitem__(self, index):
         main_idx, sub_idx = self._get_data(index)
         
         choose_video = self.all_videos_dir[main_idx]
         start_idx = self.all_sliced_indices[main_idx][sub_idx]
+
+        audio_seq = self._slice_raw_audio(choose_video, sub_idx)
 
         img_list = []
         for idx in range(start_idx, start_idx + self.fetch_length):
@@ -88,8 +112,11 @@ class FaceImageDataset(Dataset):
             img_list.append(img)
         
         img_seq = np.stack(img_list)
-        return img_seq
-            
+        
+        data_dict = {}
+        data_dict['face_image'] = img_seq
+        data_dict['raw_audio'] = audio_seq
+        return data_dict
 
 
 if __name__ == "__main__":
