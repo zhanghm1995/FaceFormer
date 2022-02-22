@@ -69,9 +69,16 @@ class Trainer:
                 train_loss = self._train_step(batch_data)
                 
                 prog_bar.set_description(f"Epoch: {epoch} | Iter: {global_step} | Training_Loss: {train_loss.item()}")
+                
+                ## Logging by tensorboard
+                self.tb_writer.add_scalar("training_loss", train_loss.item(), global_step)
 
                 global_step += 1
 
+            ## Start Validation
+
+
+            ## Saving model
             if epoch % 10 == 0:
                 checkpoint = {
                     'epoch': epoch + 1,
@@ -82,7 +89,7 @@ class Trainer:
                 }   
                 self.model_serializer.save(checkpoint, is_best=False)
                 print(f"Saving checkpoint in epoch {epoch}")
-        
+            
         print("Training Done")    
 
 
@@ -112,7 +119,10 @@ class Trainer:
 def main():
     #========= Loading Config =========#
     config = OmegaConf.load('./config/config_2d.yaml')
-    test_dataloader(config)
+    
+    #========= Create Model ============#
+    model = Trainer(config)
+    model.train()
 
 
 if __name__ == "__main__":
