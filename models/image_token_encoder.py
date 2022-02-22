@@ -15,8 +15,10 @@ from conv import Conv2dTranspose, Conv2d, nonorm_Conv2d
 
 
 class ImageTokenEncoder(nn.Module):
-    def __init__(self, in_ch=3):
+    def __init__(self, image_size=96, in_ch=3):
         super(ImageTokenEncoder, self).__init__()
+
+        self.image_size = image_size
 
         self.face_encoder_blocks = nn.ModuleList([
             nn.Sequential(Conv2d(in_ch, 16, kernel_size=7, stride=1, padding=3)), # 96,96
@@ -107,15 +109,45 @@ class ImageTokenEncoder(nn.Module):
         B, T, C, H, W = input.shape
         input = input.reshape((-1, C, H, W))
 
-        feats = []
+        self.feats = []
         x = input
         for f in self.face_encoder_blocks:
             x = f(x)
-            feats.append(x)
+            self.feats.append(x)
         
         ## Convert to (B, T, C)
-        output = feats[-1]
+        output = self.feats[-1] # 4-d tensor
         output = output.reshape(B, T, -1)
+        return output
+    
+    def decode(self, input: Tensor):
+        """Decode the embedding to whole image
+
+        Args:
+            input (Tensor): (B, T, C)
+
+        Raises:
+            e: _description_
+
+        Returns:
+            Tensor: (B, T, 3, H, W)
+        """
+        B, T, C = input.shape
+
+        input = input.reshape(-1, C, 1, 1)
+        x = input
+        for f in self.face_decoder_blocks:
+            x = f(x)
+            try:
+                x = torch.cat((x, self.feats[-1]), dim=1)
+            except Exception as e:
+                raise e
+            
+            self.feats.pop()
+        
+        x = self.output_block(x) # (B, C, H, W)
+
+        output = x.reshape((B, T, 3, self.image_size, self.image_size))
         return output
 
     def forward(self, audio_sequences, face_sequences):
@@ -166,3 +198,6 @@ if __name__ == "__main__":
     input = torch.randn(8, 100, 3, 96, 96)
     output = image_token_encoder.encode(input)
     print(output.shape)
+
+    output_image = image_token_encoder.decode(output)
+    print(output_image.shape)
