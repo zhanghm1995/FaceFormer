@@ -7,7 +7,8 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: Serialize the network model, e.g. save and load the model for training and inference
 '''
 
-import os
+import os.path as osp
+from pickle import NONE
 import torch
 import shutil
 
@@ -21,6 +22,22 @@ class ModelSerializer(object):
             state, is_best, 
             checkpoint_path=self.latest_ckpt_fpath, 
             best_model_path=self.best_ckpt_fpath)
+    
+    def restore(self, model, optimizer, load_latest=True, load_best=False):
+        start_epoch, valid_loss_min = 1, 1000.0
+
+        if load_best and osp.exists(self.best_ckpt_fpath):
+            start_epoch, global_step, valid_loss_min = self.load_ckp(
+                self.best_ckpt_fpath, model, optimizer)
+            print(f"[INFO] Load best checkpoint start_epoch: {start_epoch}")
+        elif load_latest and osp.exists(self.latest_ckpt_fpath):
+            start_epoch, global_step, valid_loss_min = self.model_serializer.load_ckp(
+                self.latest_ckpt_fpath, model, optimizer)
+            print(f"[INFO] Load latest checkpoint start_epoch: {start_epoch}")
+        else:
+            start_epoch, global_step = 1, 1
+            print("[WARNING] Train from scratch!")
+        return start_epoch, global_step, valid_loss_min
 
     def save_ckp(slef, state, is_best, checkpoint_path, best_model_path):
         """
@@ -53,4 +70,4 @@ class ModelSerializer(object):
         # initialize valid_loss_min from checkpoint to valid_loss_min
         valid_loss_min = checkpoint['valid_loss_min']
         # return model, optimizer, epoch value, min validation loss 
-        return checkpoint['epoch'], valid_loss_min
+        return checkpoint['epoch'], checkpoint['global_step'], valid_loss_min
