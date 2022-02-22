@@ -14,20 +14,25 @@ import torchaudio
 
 
 class FaceFormerEncoder(nn.Module):
-    def __init__(self, device) -> None:
+    """The Wav2Vec 2.0 FaceFormerEncoder to process the audio data
+
+    Args:
+        nn (_type_): _description_
+    """
+    def __init__(self, device, video_fps=60) -> None:
         super().__init__()
         
         bundle = torchaudio.pipelines.WAV2VEC2_BASE
         self.wav2vec2_model = bundle.get_model().to(device)
 
-        ## Frozen the TCN
+        ## Fix the TCN
         for param in self.wav2vec2_model.feature_extractor.parameters():
             param.requires_grad = False
 
         encoder_out_channels, output_channels = 768, 128
         self.final_projection = nn.Linear(encoder_out_channels, output_channels)
 
-        self.scale_factor = 60 / 16000.0
+        self.scale_factor = video_fps / 16000.0
 
         self.init_weights()
 

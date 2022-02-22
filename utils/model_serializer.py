@@ -31,7 +31,7 @@ class ModelSerializer(object):
                 self.best_ckpt_fpath, model, optimizer)
             print(f"[INFO] Load best checkpoint start_epoch: {start_epoch}")
         elif load_latest and osp.exists(self.latest_ckpt_fpath):
-            start_epoch, global_step, valid_loss_min = self.model_serializer.load_ckp(
+            start_epoch, global_step, valid_loss_min = self.load_ckp(
                 self.latest_ckpt_fpath, model, optimizer)
             print(f"[INFO] Load latest checkpoint start_epoch: {start_epoch}")
         else:

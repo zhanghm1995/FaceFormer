@@ -27,7 +27,11 @@ class FaceGenFormerDecoder(nn.Module):
         super().__init__()
 
         config = config['face_gen_former_decoder']
+        assert config is not None
+
         ## Build the decoder
+        self.image_token_encoder = nn.Linear(512, config['d_model'])
+
         decoder_layer = TransformerDecoderLayer(
             d_model=config['d_model'], nhead=config['n_head'], dim_feedforward=config['d_feed_forward'],
             batch_first=False)
@@ -35,40 +39,37 @@ class FaceGenFormerDecoder(nn.Module):
         self.decoder = TransformerDecoder(decoder_layer, num_layers=config['n_layer'], norm=decoder_norm)
 
         self.pos_encoder = PositionalEncoding(config['d_model'])
-
-        ## The final output decoder
-        self.output_decoder = nn.Sequential(
-            nn.Linear(128, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 5023*3),
-            nn.Sigmoid()
-        )
+        
+        ## Change to 512-d
+        self.image_token_decoder = nn.Linear(config['d_model'], 512)
 
     def forward(self, tgt: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None, tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None):
+        
+        tgt_embedding =  self.image_token_encoder(tgt)
+
         # 1) positional encoding
-        tgt_embedding = self.pos_encoder(tgt)
+        tgt_embedding = self.pos_encoder(tgt_embedding)
         
         # 2) transformer
         decoder_output = self.decoder(tgt_embedding, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
                                       tgt_key_padding_mask=tgt_key_padding_mask,
                                       memory_key_padding_mask=memory_key_padding_mask)
-        # 3) motion decoder
-        output = self.output_decoder(decoder_output)
+        
+        output = self.image_token_decoder(decoder_output)
         return output
-
 
 
 class FaceGenFormer(nn.Module):
     def __init__(self, config, device) -> None:
         super().__init__()
 
-        self.encoder = FaceFormerEncoder(device)
+        self.encoder = FaceFormerEncoder(device, video_fps=25)
 
         self.decoder = FaceGenFormerDecoder(config)
 
-        self.image_token_encoder_decoder = ImageTokenEncoder()
+        self.image_token_encoder_decoder = ImageTokenEncoder(in_ch=6)
     
     def encode(self, x: Tensor, lengths=None, sample_rate=16000):
         """_summary_
@@ -93,6 +94,35 @@ class FaceGenFormer(nn.Module):
         mask = (torch.triu(torch.ones(seq_len, seq_len)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
+
+    def _generate_key_mapping_mask(self, trg, lengths):
+        """_summary_
+
+        Args:
+            trg (Tensor): (Sy, B, C)
+            lengths (Tensor): (B, )
+
+        Returns:
+            Tensor: (B, Sy)
+        """
+        if lengths is None:
+            return None
+        max_len, batch_size , _ = trg.shape
+        mask = torch.arange(max_len, device=lengths.device).expand(batch_size, max_len) >= lengths[:, None]
+        return mask
+    
+    def _generate_shifted_target(self, target: Tensor):
+        """_summary_
+
+        Args:
+            target (Tensor): (Sy, B, C)
+
+        Returns:
+            _type_: shifted target with a inserted start token
+        """
+        ret = torch.zeros_like(target)
+        ret[1:, ...] = target[:-1, ...]
+        return ret
 
     def decode(self, y: Tensor, encoded_x: Tensor,
                tgt_lengths=None, shift_target_tright=True) -> Tensor:
@@ -137,16 +167,15 @@ class FaceGenFormer(nn.Module):
         
     def forward(self, data_dict):
         ## 1) Audio encoder
-        audio_seq = data_dict['raw_audio'] # (B, 16000)
-        encoded_x = self.encode(audio_seq, lengths=data_dict['raw_audio_lengths'])
+        audio_seq = data_dict['raw_audio'] # (B, L)
+        encoded_x = self.encode(audio_seq, lengths=None) # (Sx, B, E)
 
         ## 2) Get image tokens
-        image_tokens = self._get_image_tokens(data_dict['face_image'])
+        image_tokens = self._get_image_tokens(data_dict['input_image'])
 
         ## 3) Image Transformer Decoder
-        image_tokens = image_tokens
         output, output_mask = self.decode(image_tokens, encoded_x,
-                                          trg_lengths=data_dict['tgt_lengths']) # output: (Sy, B, C)
+                                          tgt_lengths=None) # output: (Sy, B, C)
                                           
         ## 4) Image Generation
         output = torch.permute(output, (1, 0, 2)) # to (B, Sy, C)

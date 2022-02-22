@@ -39,9 +39,9 @@ class Trainer:
         print(f"The training dataloader length is {len(self.train_dataloader)}")
         
         ## 2) Define the model and optimizer
-        self.model = FaceGenFormer(config, self.device)
+        self.model = FaceGenFormer(config, self.device).to(self.device)
         
-        self.optimizer = optim.Adam([p for p in self.model.parameters()], lr=1e-4)
+        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], lr=1e-4)
 
         ## 3) Define the loss
         self.criterion = nn.L1Loss().to(self.device)
@@ -98,6 +98,15 @@ class Trainer:
 
         self.optimizer.zero_grad()
 
+        ## Move to GPU
+        for key, value in data_dict.items():
+            data_dict[key] = value.to(self.device)
+
+        ## Build the input
+        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['gt_face_image']], dim=2)
+
         ## Forward the network
         model_output = self.model(data_dict)
 
@@ -120,9 +129,6 @@ def main():
     #========= Loading Config =========#
     config = OmegaConf.load('./config/config_2d.yaml')
     
-    test_dataloader(config)
-
-    exit(0)
     #========= Create Model ============#
     model = Trainer(config)
     model.train()
