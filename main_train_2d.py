@@ -75,7 +75,7 @@ class Trainer:
 
                 global_step += 1
 
-            ## Start Validation
+            ## Start Validation TODO
 
 
             ## Saving model
@@ -120,6 +120,9 @@ def main():
     #========= Loading Config =========#
     config = OmegaConf.load('./config/config_2d.yaml')
     
+    test_dataloader(config)
+
+    exit(0)
     #========= Create Model ============#
     model = Trainer(config)
     model.train()

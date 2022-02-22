@@ -15,6 +15,8 @@ from glob import glob
 import cv2
 from torch.utils.data import Dataset
 import librosa
+import torchvision.transforms as transforms
+import torch
 
 def get_all_valid_indices(total_length, fetch_length, stride) -> List:
     idx_list = list(range(0, total_length - fetch_length, stride))
@@ -41,9 +43,13 @@ class FaceImageDataset(Dataset):
         self.fetch_length = kwargs.get("fetch_length", 100)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
+        self.target_image_size = (96, 96)
 
-        self.build_dataset()        
+        self.build_dataset()
 
+        ## Define the image transformation operations
+        transform_list = [transforms.ToTensor()]
+        self.image_transforms = transforms.Compose(transform_list)
 
     def build_dataset(self):
         self.length_token_list = []
@@ -108,14 +114,16 @@ class FaceImageDataset(Dataset):
         img_list = []
         for idx in range(start_idx, start_idx + self.fetch_length):
             img_path = osp.join(self.data_root, choose_video, "face_image", f"{idx:06d}.jpg")
-            img = cv2.imread(img_path)
+            img = cv2.resize(cv2.imread(img_path), self.target_image_size)
+            img = self.image_transforms(img)
+            
             img_list.append(img)
         
-        img_seq = np.stack(img_list)
+        img_seq_tensor = torch.stack(img_list) # to (T, 3, H, W)
         
         data_dict = {}
-        data_dict['face_image'] = img_seq
-        data_dict['raw_audio'] = audio_seq
+        data_dict['gt_face_image'] = img_seq_tensor
+        data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         return data_dict
 
 

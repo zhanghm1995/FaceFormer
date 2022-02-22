@@ -11,7 +11,7 @@ import torch
 from torch import Tensor
 from torch import nn
 from torch.nn import functional as F
-from conv import Conv2dTranspose, Conv2d, nonorm_Conv2d
+from .conv import Conv2dTranspose, Conv2d, nonorm_Conv2d
 
 
 class ImageTokenEncoder(nn.Module):
