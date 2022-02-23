@@ -14,19 +14,10 @@ import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
 from omegaconf import OmegaConf
-from dataset import get_2d_dataset
+from dataset import get_2d_dataset, get_random_fixed_2d_dataset
 from models.face_gen_former import FaceGenFormer
 from utils.model_serializer import ModelSerializer
-
-
-def test_dataloader(config):
-    #========= Loading Dataset =========#
-    train_dataloader = get_2d_dataset(config['dataset'], split="train")
-    print(len(train_dataloader))
-
-    for data_batch in train_dataloader:
-        print(data_batch.shape)
-        break
+from utils.save_data import save_images
 
 class Trainer:
     def __init__(self, config) -> None:
@@ -61,6 +52,9 @@ class Trainer:
         start_epoch, global_step, _ = \
             self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
         
+        # Get fixed batch data for visualization
+        vis_training_data = get_random_fixed_2d_dataset(self.config['dataset'], split='train', num_sequences=2)
+
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             
@@ -90,8 +84,34 @@ class Trainer:
                 self.model_serializer.save(checkpoint, is_best=False)
                 print(f"Saving checkpoint in epoch {epoch}")
             
+            ## Visualization
+            for idx, data in enumerate(vis_training_data):
+                data_dict = {}
+                for key, value in data.items():
+                    data_dict[key] = value[None]
+
+                output = self._test_step(data_dict)
+                save_images(output, self.config['checkpoint_dir'], epoch, name=f"{idx:03d}")
+                
         print("Training Done")    
 
+    def _test_step(self, data_dict):
+        self.model.eval()
+        
+        ## Move to GPU
+        for key, value in data_dict.items():
+            data_dict[key] = value.to(self.device)
+        
+        ## Build the input
+        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['gt_face_image']], dim=2)
+
+        ## Forward the network
+        model_output = self.model(data_dict) # (B, T, 3, H, W)
+
+        return model_output    
+        
 
     def _train_step(self, data_dict):
         self.model.train()
@@ -122,8 +142,6 @@ class Trainer:
     def _val_step(self):
         pass
     
-    def _test_step(self):
-        pass
 
 def main():
     #========= Loading Config =========#
