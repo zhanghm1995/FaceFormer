@@ -85,7 +85,7 @@ class Trainer:
                 print("================= Start validation ==================")
                 avg_val_loss = self._val_step(epoch, global_step)
                  ## Logging by tensorboard
-                self.tb_writer.add_scalar("val_loss", avg_val_loss.item(), global_step)
+                self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
             ## Saving model
             if epoch % 10 == 0:
