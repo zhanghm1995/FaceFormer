@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_2d_with_val
+checkpoint_dir: work_dir/train_2d_with_val_best_ckpt
 expression_basis_fname: ./training_data/init_expression_basis.npy
 template_fname: ./template/FLAME_sample.ply
 deepspeech_graph_fname: ./ds_graph/output_graph.pb

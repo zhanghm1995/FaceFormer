@@ -68,6 +68,8 @@ class Trainer:
 
         vis_val_data = get_random_fixed_2d_dataset(self.config['dataset'], split='val', num_sequences=2)
 
+        min_valid_loss, avg_val_loss = 1000.0, 2000.0
+
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             
@@ -98,8 +100,15 @@ class Trainer:
                     'state_dict': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }   
-                self.model_serializer.save(checkpoint, is_best=False)
-                print(f"Saving checkpoint in epoch {epoch}")
+
+                if avg_val_loss < min_valid_loss:
+                    self.model_serializer.save(checkpoint, is_best=True)
+                    print(f"Saving best checkpoint in epoch {epoch} with best validation loss: {avg_val_loss}")
+                    min_valid_loss = avg_val_loss
+                else:
+                    self.model_serializer.save(checkpoint, is_best=False)
+                    print(f"Saving latest checkpoint in epoch {epoch}")
+                    
             
             ## Visualization
             if epoch % 4 == 0:
@@ -227,7 +236,7 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.test()
+    model.train()
 
 
 if __name__ == "__main__":
