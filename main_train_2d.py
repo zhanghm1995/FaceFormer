@@ -66,6 +66,8 @@ class Trainer:
         # Get fixed batch data for visualization
         vis_training_data = get_random_fixed_2d_dataset(self.config['dataset'], split='train', num_sequences=2)
 
+        vis_val_data = get_random_fixed_2d_dataset(self.config['dataset'], split='val', num_sequences=2)
+
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             
@@ -81,14 +83,14 @@ class Trainer:
                 global_step += 1
 
             ## Start Validation
-            if epoch % 2 == 0:
+            if epoch % 4 == 0:
                 print("================= Start validation ==================")
                 avg_val_loss = self._val_step(epoch, global_step)
                  ## Logging by tensorboard
                 self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
             ## Saving model
-            if epoch % 10 == 0:
+            if epoch % 4 == 0:
                 checkpoint = {
                     'epoch': epoch + 1,
                     'global_step': global_step + 1,
@@ -100,17 +102,43 @@ class Trainer:
                 print(f"Saving checkpoint in epoch {epoch}")
             
             ## Visualization
-            for idx, data in enumerate(vis_training_data):
-                data_dict = {}
-                for key, value in data.items():
-                    data_dict[key] = value[None]
+            if epoch % 4 == 0:
+                for idx, data in enumerate(vis_val_data):
+                    data_dict = {}
+                    for key, value in data.items():
+                        data_dict[key] = value[None]
 
-                output = self._test_step(data_dict)
-                
-                output_vis = compute_visuals(data_dict, output)
-                save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                
+                    output = self._test_step(data_dict)
+                    
+                    output_vis = compute_visuals(data_dict, output)
+                    save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
+                    
         print("Training Done")    
+
+    def test(self):
+        print("================ Start testing ======================")
+        ## 1) Restore the network
+        start_epoch, global_step = 1, 1
+        start_epoch, global_step, _ = \
+            self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
+        
+        # Get fixed batch data for visualization
+        vis_val_data = get_random_fixed_2d_dataset(self.config['dataset'], split='val', num_sequences=2)
+
+        ## 2) ========= Start training ======================
+        epoch = start_epoch
+        ## Visualization
+        for idx, data in enumerate(vis_val_data):
+            data_dict = {}
+            for key, value in data.items():
+                data_dict[key] = value[None]
+
+            output = self._test_step(data_dict)
+            
+            output_vis = compute_visuals(data_dict, output)
+            save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
+                    
+        print("Training Done")
 
     def _test_step(self, data_dict, autoregressive=False):
         self.model.eval()
@@ -132,7 +160,6 @@ class Trainer:
                 model_output = self.model(data_dict) # (B, T, 3, H, W)
 
         return model_output    
-        
 
     def _train_step(self, data_dict):
         self.model.train()
@@ -200,7 +227,7 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.train()
+    model.test()
 
 
 if __name__ == "__main__":
