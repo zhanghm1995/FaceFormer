@@ -14,7 +14,8 @@ import subprocess
 from tqdm import tqdm
 from .utils import tensor2im
 
-def save_video(image, output_video_fname, image_size=512, audio_fname=None):
+def save_video(image, output_video_fname, image_size=512, 
+               audio_fname=None, audio_data=None, audio_sample_rate=16000):
     print("================== Start create the video =================================")
     tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=osp.dirname(output_video_fname))
     writer = cv2.VideoWriter(tmp_video_file.name, cv2.VideoWriter_fourcc(*'mp4v'), 60, (image_size, image_size), True)

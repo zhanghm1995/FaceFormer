@@ -37,6 +37,8 @@ class Trainer:
         ## 1) Define the dataloader
         self.train_dataloader = get_2d_dataset(config['dataset'], split="train")
         print(f"The training dataloader length is {len(self.train_dataloader)}")
+        self.val_dataloader = get_2d_dataset(config['dataset'], split='val')
+        print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
         ## 2) Define the model and optimizer
         self.model = FaceGenFormer(config, self.device).to(self.device)
@@ -78,8 +80,12 @@ class Trainer:
 
                 global_step += 1
 
-            ## Start Validation TODO
-
+            ## Start Validation
+            if epoch % 2 == 0:
+                print("================= Start validation ==================")
+                avg_val_loss = self._val_step(epoch, global_step)
+                 ## Logging by tensorboard
+                self.tb_writer.add_scalar("val_loss", avg_val_loss.item(), global_step)
 
             ## Saving model
             if epoch % 10 == 0:
@@ -102,11 +108,11 @@ class Trainer:
                 output = self._test_step(data_dict)
                 
                 output_vis = compute_visuals(data_dict, output)
-                save_images(output_vis, self.config['checkpoint_dir'], epoch, name=f"{idx:03d}")
+                save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
                 
         print("Training Done")    
 
-    def _test_step(self, data_dict):
+    def _test_step(self, data_dict, autoregressive=False):
         self.model.eval()
         
         with torch.no_grad():
@@ -120,7 +126,10 @@ class Trainer:
             data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
 
             ## Forward the network
-            model_output = self.model(data_dict) # (B, T, 3, H, W)
+            if autoregressive:
+                model_output = self.model.inference(data_dict)
+            else:
+                model_output = self.model(data_dict) # (B, T, 3, H, W)
 
         return model_output    
         
@@ -151,8 +160,38 @@ class Trainer:
         
         return loss
 
-    def _val_step(self):
-        pass
+    def _val_step(self, epoch, global_step, autoregressive=False):
+        self.model.eval()
+        
+        with torch.no_grad():
+            val_loss_list = []
+
+            prog_bar = tqdm(self.val_dataloader)
+            for batch_data in prog_bar:
+                ## Move to GPU
+                for key, value in batch_data.items():
+                    batch_data[key] = value.to(self.device)
+                
+                ## Build the input
+                masked_gt_image = batch_data['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+                masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+                batch_data['input_image'] = torch.concat([masked_gt_image, batch_data['ref_face_image']], dim=2) # (B, T, 6, H, W)
+
+                ## Forward the network
+                if autoregressive:
+                    model_output = self.model.inference(batch_data)
+                else:
+                    model_output = self.model(batch_data) # (B, T, 3, H, W)
+
+                val_loss = self.criterion(model_output, batch_data['gt_face_image'])
+
+                prog_bar.set_description(f"Epoch: {epoch} | Iter: {global_step} | Validation Loss: {val_loss.item()}")
+
+                val_loss_list.append(val_loss.item())
+
+            average_val_loss = sum(val_loss_list) / len(val_loss_list)
+            print(f"Epoch: {epoch} | Iter: {global_step} | Average Validation Loss: {average_val_loss}")
+        return average_val_loss
     
 
 def main():
