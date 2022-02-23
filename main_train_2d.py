@@ -19,6 +19,15 @@ from models.face_gen_former import FaceGenFormer
 from utils.model_serializer import ModelSerializer
 from utils.save_data import save_images
 
+def compute_visuals(data_dict, output):
+    ## we combine input, ref, output, gt together
+    input = data_dict['input_image'][:, :, :3, :, :]
+    ref = data_dict['input_image'][:, :, 3:, :, :]
+    gt = data_dict['gt_face_image']
+    output_vis = torch.concat([input, ref, output, gt], dim=-1)
+    return output_vis
+
+
 class Trainer:
     def __init__(self, config) -> None:
         ## Define some parameters
@@ -91,24 +100,27 @@ class Trainer:
                     data_dict[key] = value[None]
 
                 output = self._test_step(data_dict)
-                save_images(output, self.config['checkpoint_dir'], epoch, name=f"{idx:03d}")
+                
+                output_vis = compute_visuals(data_dict, output)
+                save_images(output_vis, self.config['checkpoint_dir'], epoch, name=f"{idx:03d}")
                 
         print("Training Done")    
 
     def _test_step(self, data_dict):
         self.model.eval()
         
-        ## Move to GPU
-        for key, value in data_dict.items():
-            data_dict[key] = value.to(self.device)
-        
-        ## Build the input
-        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['gt_face_image']], dim=2)
+        with torch.no_grad():
+            ## Move to GPU
+            for key, value in data_dict.items():
+                data_dict[key] = value.to(self.device)
+            
+            ## Build the input
+            masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+            masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+            data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
 
-        ## Forward the network
-        model_output = self.model(data_dict) # (B, T, 3, H, W)
+            ## Forward the network
+            model_output = self.model(data_dict) # (B, T, 3, H, W)
 
         return model_output    
         
@@ -125,7 +137,7 @@ class Trainer:
         ## Build the input
         masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
         masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['gt_face_image']], dim=2)
+        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2)
 
         ## Forward the network
         model_output = self.model(data_dict)
