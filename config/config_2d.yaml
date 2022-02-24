@@ -1,18 +1,4 @@
 checkpoint_dir: work_dir/train_2d_with_val_best_ckpt
-expression_basis_fname: ./training_data/init_expression_basis.npy
-template_fname: ./template/FLAME_sample.ply
-deepspeech_graph_fname: ./ds_graph/output_graph.pb
-verts_mmaps_path: ./training_data/data_verts.npy
-raw_audio_path: ./training_data/raw_audio_fixed.pkl
-templates_path: ./training_data/templates.pkl
-data2array_verts_path: ./training_data/subj_seq_to_idx.pkl
-processed_audio_path: ./training_data/processed_audio_deepspeech.pkl
-
-num_consecutive_frames: 2
-absolute_reconstruction_loss: False
-velocity_weight: 10.0
-acceleration_weight: 0.0
-verts_regularizer_weight: 0.0
 
 learning_rate: 1e-4
 decay_rate: 1.0
@@ -22,22 +8,15 @@ adam_beta1_value: 0.9
 num_render_sequences: 3
 
 dataset:
+  data_root: /home/haimingzhang/Research/Face/FACIAL/video_preprocessed/id00002
   batch_size: 4
   number_workers: 4
-  data_root: /home/haimingzhang/Research/Face/FACIAL/video_preprocessed/id00002
-
-
-final_channels: 15069
-motion_embedding_dim: 128
-style_embedding_dim: 128
 
 face_gen_former_decoder:
   d_model: 128
   n_head: 4
   n_layer: 1
   d_feed_forward: 1024
-
-  d_motion_decoder: 15069 # 5023*3
 
 log:
   checkpoint_dir: training_exp
