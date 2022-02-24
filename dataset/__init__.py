@@ -35,7 +35,6 @@ def get_2d_dataset(config, split):
 
 def get_random_fixed_2d_dataset(config, split, num_sequences):
     from .face_image_dataset import FaceImageDataset
-    from torch.utils.data import DataLoader
 
     dataset = FaceImageDataset(data_root=config['data_root'], split=split)
     seq_list = list(range(len(dataset)))

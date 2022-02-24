@@ -37,6 +37,8 @@ class Trainer:
         ## 1) Define the dataloader
         self.train_dataloader = get_2d_dataset(config['dataset'], split="train")
         print(f"The training dataloader length is {len(self.train_dataloader)}")
+        self.val_dataloader = get_2d_dataset(config['dataset'], split='val')
+        print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
         ## 2) Define the model and optimizer
         self.model = FaceGenFormer(config, self.device).to(self.device)
@@ -56,6 +58,9 @@ class Trainer:
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
 
+        ## Save the config parameters
+        OmegaConf.save(self.config, osp.join(self.config['checkpoint_dir'], "config_train.yaml"))
+
         ## 2) Restore the network
         start_epoch, global_step = 1, 1
         start_epoch, global_step, _ = \
@@ -63,6 +68,10 @@ class Trainer:
         
         # Get fixed batch data for visualization
         vis_training_data = get_random_fixed_2d_dataset(self.config['dataset'], split='train', num_sequences=2)
+
+        vis_val_data = get_random_fixed_2d_dataset(self.config['dataset'], split='val', num_sequences=2)
+
+        min_valid_loss, avg_val_loss = 1000.0, 2000.0
 
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
@@ -78,11 +87,15 @@ class Trainer:
 
                 global_step += 1
 
-            ## Start Validation TODO
-
+            ## Start Validation
+            if epoch % 4 == 0:
+                print("================= Start validation ==================")
+                avg_val_loss = self._val_step(epoch, global_step)
+                 ## Logging by tensorboard
+                self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
             ## Saving model
-            if epoch % 10 == 0:
+            if epoch % 4 == 0:
                 checkpoint = {
                     'epoch': epoch + 1,
                     'global_step': global_step + 1,
@@ -90,23 +103,56 @@ class Trainer:
                     'state_dict': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }   
-                self.model_serializer.save(checkpoint, is_best=False)
-                print(f"Saving checkpoint in epoch {epoch}")
+
+                if avg_val_loss < min_valid_loss:
+                    self.model_serializer.save(checkpoint, is_best=True)
+                    print(f"Saving best checkpoint in epoch {epoch} with best validation loss: {avg_val_loss}")
+                    min_valid_loss = avg_val_loss
+                else:
+                    self.model_serializer.save(checkpoint, is_best=False)
+                    print(f"Saving latest checkpoint in epoch {epoch}")
+                    
             
             ## Visualization
-            for idx, data in enumerate(vis_training_data):
-                data_dict = {}
-                for key, value in data.items():
-                    data_dict[key] = value[None]
+            if epoch % 4 == 0:
+                for idx, data in enumerate(vis_val_data):
+                    data_dict = {}
+                    for key, value in data.items():
+                        data_dict[key] = value[None]
 
-                output = self._test_step(data_dict)
-                
-                output_vis = compute_visuals(data_dict, output)
-                save_images(output_vis, self.config['checkpoint_dir'], epoch, name=f"{idx:03d}")
-                
+                    output = self._test_step(data_dict)
+                    
+                    output_vis = compute_visuals(data_dict, output)
+                    save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
+                    
         print("Training Done")    
 
-    def _test_step(self, data_dict):
+    def test(self):
+        print("================ Start testing ======================")
+        ## 1) Restore the network
+        start_epoch, global_step = 1, 1
+        start_epoch, global_step, _ = \
+            self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
+        
+        # Get fixed batch data for visualization
+        vis_val_data = get_random_fixed_2d_dataset(self.config['dataset'], split='val', num_sequences=2)
+
+        ## 2) ========= Start training ======================
+        epoch = start_epoch
+        ## Visualization
+        for idx, data in enumerate(vis_val_data):
+            data_dict = {}
+            for key, value in data.items():
+                data_dict[key] = value[None]
+
+            output = self._test_step(data_dict)
+            
+            output_vis = compute_visuals(data_dict, output)
+            save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
+                    
+        print("Training Done")
+
+    def _test_step(self, data_dict, autoregressive=False):
         self.model.eval()
         
         with torch.no_grad():
@@ -120,10 +166,12 @@ class Trainer:
             data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
 
             ## Forward the network
-            model_output = self.model(data_dict) # (B, T, 3, H, W)
+            if autoregressive:
+                model_output = self.model.inference(data_dict)
+            else:
+                model_output = self.model(data_dict) # (B, T, 3, H, W)
 
         return model_output    
-        
 
     def _train_step(self, data_dict):
         self.model.train()
@@ -151,8 +199,38 @@ class Trainer:
         
         return loss
 
-    def _val_step(self):
-        pass
+    def _val_step(self, epoch, global_step, autoregressive=False):
+        self.model.eval()
+        
+        with torch.no_grad():
+            val_loss_list = []
+
+            prog_bar = tqdm(self.val_dataloader)
+            for batch_data in prog_bar:
+                ## Move to GPU
+                for key, value in batch_data.items():
+                    batch_data[key] = value.to(self.device)
+                
+                ## Build the input
+                masked_gt_image = batch_data['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+                masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+                batch_data['input_image'] = torch.concat([masked_gt_image, batch_data['ref_face_image']], dim=2) # (B, T, 6, H, W)
+
+                ## Forward the network
+                if autoregressive:
+                    model_output = self.model.inference(batch_data)
+                else:
+                    model_output = self.model(batch_data) # (B, T, 3, H, W)
+
+                val_loss = self.criterion(model_output, batch_data['gt_face_image'])
+
+                prog_bar.set_description(f"Epoch: {epoch} | Iter: {global_step} | Validation Loss: {val_loss.item()}")
+
+                val_loss_list.append(val_loss.item())
+
+            average_val_loss = sum(val_loss_list) / len(val_loss_list)
+            print(f"Epoch: {epoch} | Iter: {global_step} | Average Validation Loss: {average_val_loss}")
+        return average_val_loss
     
 
 def main():
