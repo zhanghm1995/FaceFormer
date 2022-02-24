@@ -1,0 +1,29 @@
+checkpoint_dir: work_dir/train_2d_3d_debug
+
+learning_rate: 1e-4
+decay_rate: 1.0
+epoch_num: 5000
+adam_beta1_value: 0.9
+
+num_render_sequences: 3
+
+dataset:
+  data_root: ./data/id00002
+  batch_size: 2
+  number_workers: 4
+
+
+d_model: 128
+
+mm_fusion_decoder:
+  d_model: 128
+  n_head: 4
+  n_layer: 2
+  d_feed_forward: 1024
+
+face_3dmm_former:
+  d_input_3d_params: 64
+  d_model: 128
+
+log:
+  checkpoint_dir: training_exp

@@ -58,12 +58,18 @@ class Face3DMMFormer(nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
 
+        config = config['face_3dmm_former']
+        assert config is not None
+
         d_input_3d_params = config['d_input_3d_params']
         d_embedding_model = config['d_model']
 
         self.input_encoder = nn.Linear(d_input_3d_params, d_embedding_model)
 
-        self.output_encoder = nn.Linear(d_embedding_model, d_input_3d_params)
+        self.output_encoder = nn.Sequential(
+            nn.Linear(512, d_embedding_model),
+            nn.ReLU(),
+            nn.Linear(d_embedding_model, d_input_3d_params))
 
         self.pos_encoder = PositionalEncoding(d_embedding_model)
 
@@ -133,7 +139,7 @@ class MMFusionFormer(nn.Module):
                 # rescale the lengths
                 lengths = (lengths * 16000 / 22000.0).to(lengths.dtype)
         
-        enc_output = self.encoder(x, lengths)
+        enc_output = self.audio_encoder(x, lengths)
         return enc_output.permute(1, 0, 2)
 
     def encode_target(self, input_dict):
@@ -154,8 +160,8 @@ class MMFusionFormer(nn.Module):
         ## 2) Get the 3D informations embedding
         face_3d_param_embedding = self.face_3d_param_model.encode_embedding(input_dict['face_3d_params'])
 
-        ## 3) Combine the 2D-3D embeddings together
-        assert image_tokens.size[2] == face_3d_param_embedding.size[2]
+        ## 3) Combine the 2D-3D embeddings together along the sequence dimension
+        assert image_tokens.shape[2] == face_3d_param_embedding.shape[2]
         mm_embedding = torch.concat([image_tokens, face_3d_param_embedding], dim=1)
         return mm_embedding
 
