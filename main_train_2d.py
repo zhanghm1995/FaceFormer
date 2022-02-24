@@ -58,6 +58,9 @@ class Trainer:
         from torch.utils.tensorboard import SummaryWriter
         self.tb_writer = SummaryWriter(osp.join(self.config['checkpoint_dir'], "logdir"))
 
+        ## Save the config parameters
+        OmegaConf.save(self.config, osp.join(self.config['checkpoint_dir'], "config_train.yaml"))
+
         ## 2) Restore the network
         start_epoch, global_step = 1, 1
         start_epoch, global_step, _ = \

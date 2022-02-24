@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_2d_with_val_best_ckpt
+checkpoint_dir: work_dir/train_2d_add_dataset
 
 learning_rate: 1e-4
 decay_rate: 1.0
@@ -8,8 +8,8 @@ adam_beta1_value: 0.9
 num_render_sequences: 3
 
 dataset:
-  data_root: /home/haimingzhang/Research/Face/FACIAL/video_preprocessed/id00002
-  batch_size: 4
+  data_root: ./data/id00002
+  batch_size: 2
   number_workers: 4
 
 face_gen_former_decoder:
