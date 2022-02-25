@@ -71,12 +71,14 @@ class Face3DMMFormer(nn.Module):
             nn.ReLU(),
             nn.Linear(d_embedding_model, d_input_3d_params))
 
+        self.face_3d_feat_layer_norm = LayerNorm(config['d_model'])
+
         self.pos_encoder = PositionalEncoding(d_embedding_model)
 
     def forward(self):
         pass
 
-    def encode_embedding(self, input_seq: Tensor, add_positional_encoding=True):
+    def encode_embedding(self, input_seq: Tensor, apply_layer_norm=True, add_positional_encoding=True):
         """Encode the raw face 3DMM sequence parameters into embeddings
 
         Args:
@@ -89,6 +91,10 @@ class Face3DMMFormer(nn.Module):
         ## Get the embeddings
         embedding = self.input_encoder(input_seq)
         
+        ## Apply the Layer Norm
+        if apply_layer_norm:
+            embedding = self.face_3d_feat_layer_norm(embedding)
+            
         ## Add the positional encoding
         if add_positional_encoding:
             embedding = self.pos_encoder(embedding)
@@ -114,6 +120,7 @@ class MMFusionFormer(nn.Module):
         ## Define the target 2D image tokens sequence encoder
         self.image_token_sequence_encoder = nn.Sequential(
             nn.Linear(512, config['d_model']),
+            LayerNorm(config['d_model']),
             PositionalEncoding(config['d_model'])
         )
 

@@ -126,12 +126,8 @@ class Feature2Face_D(nn.Module):
        
     #@autocast()    
     def forward(self, input):
-        if self.opt.fp16:   #####默认情况下没有用这个
-            with autocast():
-                pred = self.netD(input)
-        else:
-            input = torch.cat([input[:, :, i] for i in range(input.size(2))], dim=0)         #####
-            #注：生成器的输出是  torch.Size([6, 3, 5, 192, 192])   6是批大小
-            #生成的图片是6个窗口，每个窗口5张图片，所以 把它变成30张图片,即 30，3 ，192，192，再输入到判别器当中
-            pred = self.netD(input)
+        input = torch.cat([input[:, :, i] for i in range(input.size(2))], dim=0)         #####
+        #注：生成器的输出是  torch.Size([6, 3, 5, 192, 192])   6是批大小
+        #生成的图片是6个窗口，每个窗口5张图片，所以 把它变成30张图片,即 30，3 ，192，192，再输入到判别器当中
+        pred = self.netD(input)
         return pred
