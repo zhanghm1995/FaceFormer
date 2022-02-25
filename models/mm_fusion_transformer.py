@@ -213,6 +213,7 @@ class MMFusionFormer(nn.Module):
 
         ## Generate the 3DMM parameters
         output_3d_params = self.face_3d_param_model.decode_embedding(face_3d_feat)
+        output_3d_params = torch.permute(output_3d_params, (1, 0, 2)) # to (B, Sy, C)
         
         output_dict = defaultdict(lambda: None)
         output_dict['face_image'] = output_image
