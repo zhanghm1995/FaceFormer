@@ -16,9 +16,8 @@ from .face_image_dataset import FaceImageDataset
 
 class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
-        super().__init__(data_root, split, kwargs)
+        super(Face2D3DDataset, self).__init__(data_root, split)
 
-        
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):
         """Get coefficient vector from Deep3DFace_Pytorch results
