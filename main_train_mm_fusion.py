@@ -153,7 +153,7 @@ class Trainer:
 
                     output = self._test_step(data_dict)
                     
-                    output_vis = compute_visuals(data_dict, output)
+                    output_vis = compute_visuals(data_dict, output['face_image'])
                     save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
                     
         print("Training Done")    
