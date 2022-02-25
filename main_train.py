@@ -80,10 +80,10 @@ class Trainer(object):
         start_epoch, valid_loss_min = 1, 1000.0
 
         if load_best:
-            start_epoch, valid_loss_min = self.model_serializer.load_ckp(
+            start_epoch, _, valid_loss_min = self.model_serializer.load_ckp(
                 osp.join(self.config['checkpoint_dir'], "best_model.ckpt"), self.model, self.optimizer)
         elif load_latest and osp.exists(osp.join(self.config['checkpoint_dir'], "latest_model.ckpt")):
-            start_epoch, valid_loss_min = self.model_serializer.load_ckp(
+            start_epoch, _, valid_loss_min = self.model_serializer.load_ckp(
                 osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"), self.model, self.optimizer)
             print(f"[INFO] Load latest checkpoint start_epoch: {start_epoch}")
         else:
@@ -179,7 +179,7 @@ class Trainer(object):
         rendered_image = np.concatenate(rendered_image, axis=0)
         print(rendered_image.shape)
 
-        output_video_fname = osp.join("./output", f"FaceTalk_170728_03272_TA_seq01_infer_wo_padding_all_data.mp4")
+        output_video_fname = osp.join("./output", f"FaceTalk_170728_03272_TA_seq34_infer_wo_padding_all_data.mp4")
         
         tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=osp.dirname(output_video_fname))
         wavfile.write(tmp_audio_file.name, 22000, raw_audio)
@@ -405,11 +405,11 @@ def main():
 
     os.makedirs(config['checkpoint_dir'], exist_ok=True)
 
-    OmegaConf.save(config, osp.join(config['checkpoint_dir'], "config.yaml"))
+    OmegaConf.save(config, osp.join(config['checkpoint_dir'], "config_test.yaml"))
 
     #========= Create Model ============#
     model = Trainer(config, batcher)
-    model.train()
+    model.test()
 
 
 if __name__ == "__main__":

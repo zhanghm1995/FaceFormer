@@ -1,0 +1,1 @@
+from .discriminators import img_gen_disc
