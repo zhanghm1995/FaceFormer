@@ -18,7 +18,7 @@ import torchaudio
 from typing import Optional, Any, Union, Callable
 from torch.nn import TransformerDecoder, LayerNorm, TransformerDecoderLayer
 from .face_former_encoder import FaceFormerEncoder
-from .image_token_encoder import ImageTokenEncoder
+from .image_token_encoder import ImageTokenEncoder, ImageTokenEncoder224
 from .pos_encoder import PositionalEncoding
 
 
@@ -115,7 +115,7 @@ class MMFusionFormer(nn.Module):
         self.audio_encoder = FaceFormerEncoder(device, video_fps=25)
 
         ## Define the 2D image generation model
-        self.image_token_encoder_decoder = ImageTokenEncoder(in_ch=6)
+        self.image_token_encoder_decoder = ImageTokenEncoder224(in_ch=6)
         
         ## Define the target 2D image tokens sequence encoder
         self.image_token_sequence_encoder = nn.Sequential(
@@ -165,7 +165,7 @@ class MMFusionFormer(nn.Module):
         image_tokens = self.image_token_sequence_encoder(image_tokens) ## Add positional information
 
         ## 2) Get the 3D informations embedding
-        face_3d_param_embedding = self.face_3d_param_model.encode_embedding(input_dict['face_3d_params'])
+        face_3d_param_embedding = self.face_3d_param_model.encode_embedding(input_dict['ref_face_3d_params'])
 
         ## 3) Combine the 2D-3D embeddings together along the sequence dimension
         assert image_tokens.shape[2] == face_3d_param_embedding.shape[2]

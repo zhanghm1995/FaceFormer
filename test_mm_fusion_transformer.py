@@ -18,13 +18,13 @@ device = torch.device("cuda")
 
 mm_fusion_former = MMFusionFormer(config, device).to(device)
 
-face_image = torch.randn((2, 100, 6, 96, 96)).to(device)
-face_3d_params = torch.randn((2, 100, 64)).to(device)
-raw_audio = torch.randn((2, 64000)).to(device)
+face_image = torch.randn((1, 100, 6, 224, 224)).to(device)
+face_3d_params = torch.randn((1, 100, 64)).to(device)
+raw_audio = torch.randn((1, 64000)).to(device)
 
 data_dict = {'raw_audio': raw_audio, 
              'input_image': face_image, 
-             'face_3d_params': face_3d_params}
+             'ref_face_3d_params': face_3d_params}
 
 output_dict = mm_fusion_former(data_dict)
 
