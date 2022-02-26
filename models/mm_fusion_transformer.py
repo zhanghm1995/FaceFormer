@@ -115,7 +115,7 @@ class MMFusionFormer(nn.Module):
         self.audio_encoder = FaceFormerEncoder(device, video_fps=25)
 
         ## Define the 2D image generation model
-        self.image_token_encoder_decoder = ImageTokenEncoder(in_ch=6)
+        self.image_token_encoder_decoder = ImageTokenEncoder224(in_ch=6)
         
         ## Define the target 2D image tokens sequence encoder
         self.image_token_sequence_encoder = nn.Sequential(
