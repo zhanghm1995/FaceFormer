@@ -252,7 +252,6 @@ class Trainer:
         return all_losses
 
     def _val_step(self, epoch, global_step, autoregressive=False):
-
         def calc_avg_loss(loss_dict_list):
             assert len(loss_dict_list) != False, "input list length is 0"
 
@@ -266,14 +265,12 @@ class Trainer:
 
             return avg_loss_dict
 
-        self.model.eval()
-        
         with torch.no_grad():
             val_loss_list = []
 
             prog_bar = tqdm(self.val_dataloader)
             for batch_data in prog_bar:
-                val_loss_dict = self.model.validate(batch_data)
+                val_loss_dict = self.model.validate(batch_data, autoregressive)
 
                 loss_description_str = get_loss_description_str(val_loss_dict)
 

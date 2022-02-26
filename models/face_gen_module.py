@@ -79,8 +79,7 @@ class FaceGenModule(object):
 
     def validate(self, data_dict, autoregressive=False):
         ## 1) Set model to train mode
-        self.net_G.train()
-        self.net_D.train()
+        self.net_G.val()
 
         ## 2) Forward the network
         self.forward(data_dict)
