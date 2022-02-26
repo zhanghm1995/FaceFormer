@@ -195,11 +195,13 @@ class ImageTokenEncoder(nn.Module):
 class ImageTokenEncoder224(nn.Module):
     """Image tokenization encoder for input (224, 224) image
     """
-    def __init__(self):
+    def __init__(self, image_size=224, in_ch=6):
         super(ImageTokenEncoder224, self).__init__()
 
+        self.image_size = image_size
+
         self.face_encoder_blocks = nn.ModuleList([
-            nn.Sequential(Conv2d(6, 16, kernel_size=7, stride=1, padding=3)), # 224,224
+            nn.Sequential(Conv2d(in_ch, 16, kernel_size=7, stride=1, padding=3)), # 224,224
 
             nn.Sequential(Conv2d(16, 32, kernel_size=3, stride=2, padding=1), # 112,112
             Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
@@ -226,25 +228,6 @@ class ImageTokenEncoder224(nn.Module):
 
             nn.Sequential(Conv2d(512, 512, kernel_size=3, stride=1, padding=0),     # 1, 1
             Conv2d(512, 512, kernel_size=1, stride=1, padding=0)),])
-
-        self.audio_encoder = nn.Sequential(
-            Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
-            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
-            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
-
-            Conv2d(32, 64, kernel_size=3, stride=(3, 1), padding=1),
-            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
-            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
-
-            Conv2d(64, 128, kernel_size=3, stride=3, padding=1),
-            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
-            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
-
-            Conv2d(128, 256, kernel_size=3, stride=(3, 2), padding=1),
-            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
-
-            Conv2d(256, 512, kernel_size=3, stride=1, padding=0),
-            Conv2d(512, 512, kernel_size=1, stride=1, padding=0),)
 
         self.face_decoder_blocks = nn.ModuleList([
             nn.Sequential(Conv2d(512, 512, kernel_size=1, stride=1, padding=0),),
@@ -340,7 +323,7 @@ class ImageTokenEncoder224(nn.Module):
 if __name__ == "__main__":
     image_token_encoder = ImageTokenEncoder()
 
-    input = torch.randn(8, 100, 3, 96, 96)
+    input = torch.randn(2, 100, 6, 96, 96)
     output = image_token_encoder.encode(input)
     print(output.shape)
 

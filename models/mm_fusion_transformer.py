@@ -18,7 +18,7 @@ import torchaudio
 from typing import Optional, Any, Union, Callable
 from torch.nn import TransformerDecoder, LayerNorm, TransformerDecoderLayer
 from .face_former_encoder import FaceFormerEncoder
-from .image_token_encoder import ImageTokenEncoder
+from .image_token_encoder import ImageTokenEncoder, ImageTokenEncoder224
 from .pos_encoder import PositionalEncoding
 
 
