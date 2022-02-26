@@ -107,24 +107,15 @@ class NLayerDiscriminator(nn.Module):
             return self.model(input)      
 
 
-from torch.cuda.amp import autocast as autocast
-
 class Feature2Face_D(nn.Module):
     def __init__(self, opt):
         super(Feature2Face_D, self).__init__()
         # initialize
         self.opt = opt
 
-        self.Tensor = torch.cuda.FloatTensor
-
-        self.output_nc = opt.output_nc        
-
         ##################### define networks
         self.netD = MultiscaleDiscriminator(3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)  ###PatchGAN判别器
-                    
-        print('---------- Discriminator networks initialized -------------') 
        
-    #@autocast()    
     def forward(self, input):
         input = torch.cat([input[:, :, i] for i in range(input.size(2))], dim=0)         #####
         #注：生成器的输出是  torch.Size([6, 3, 5, 192, 192])   6是批大小

@@ -4,32 +4,45 @@ Copyright (c) 2022 by Haiming Zhang. All Rights Reserved.
 Author: Haiming Zhang
 Date: 2022-02-25 21:25:35
 Email: haimingzhang@link.cuhk.edu.cn
-Description: Face generation trainer class with different GAN related losses and Discriminators
+Description: Face generation Module class with different GAN related losses and Discriminators
 '''
 
 import torch
 import torch.nn as nn
 import numpy as np
 
-from ..utils import loss
+from .mm_fusion_transformer import MMFusionFormer
+from .discriminators.img_gen_disc import Feature2Face_D
+from utils import loss
 
 
-class FaceGenTrainer(object):
+class FaceGenModule(object):
     def __init__(self, opt, device) -> None:
         self.isTrain = opt.isTrain
         
         ## Define the models
-        self.net_G = None
-        self.net_D = None
-
-        ## Define the optimizers
-        self.optimizer_G = None
-        self.optimizer_D = None
+        self.net_G = MMFusionFormer(opt, device)
 
         ## Define the criterions
-        self.criterionGAN = loss.GANLoss(opt.gan_mode, tensor=self.Tensor).to(device)
-        self.criterionL1 = nn.L1Loss().to(device)
+        if self.isTrain:
+            self.net_D = Feature2Face_D(opt)
 
+            ## Define the optimizers
+            net_params_G = [p for p in self.net_G.parameters() if p.requires_grad]
+            self.optimizer_G = torch.optim.Adam(net_params_G, lr=1e-4)
+
+            net_params_D = [p for p in self.net_D.parameters() if p.requires_grad]
+            self.optimizer_D = torch.optim.Adam(net_params_D, lr=1e-4)
+
+            self.loss_names_G = ['L1', 'VGG', 'Style', 'loss_G_GAN', 'loss_G_FM'] # Generator loss
+            self.loss_names_D = ['D_real', 'D_fake']                              # Discriminator loss
+
+            self.criterionGAN = loss.GANLoss(opt.gan_mode, tensor=self.Tensor).to(device)
+            self.criterionL1 = nn.L1Loss().to(device)
+            self.criterionVGG = loss.VGGLoss().to(device)
+
+        ## Init weights
+        self._init_weights()
 
     def set_requires_grad(self, nets, requires_grad=False):
         """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
@@ -44,12 +57,28 @@ class FaceGenTrainer(object):
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
+    def train(self, data_dict):
+        ## 1) Set model to train mode
+        self.net_G.train()
+        self.net_D.train()
+
+        ## 2) Forward the network
+        self.forward(data_dict)
+
+        ## 3) Optimize the network
+        self.optimize_parameters()
+
+        ## 4) Logging
+
+        ## 5) Output
+        return self.fake_pred
+
 
     def forward(self, data_dict):
         self.input_image
         self.tgt_image = data_dict['gt_face_image']
 
-        self.fake_pred = self.net_G(data_dict['face_image'])
+        self.fake_pred = self.net_G(data_dict['face_image']) # Generator results
 
 
     def backward_D(self):
@@ -73,30 +102,33 @@ class FaceGenTrainer(object):
         # GAN loss
         real_AB = torch.cat((self.input_feature_maps, self.tgt_image), dim=1)
         fake_AB = torch.cat((self.input_feature_maps, self.fake_pred), dim=1)
-        pred_real = self.Feature2Face_D(real_AB)
-        pred_fake = self.Feature2Face_D(fake_AB)
+        pred_real = self.net_D(real_AB)
+        pred_fake = self.net_D(fake_AB)
+
         loss_G_GAN = self.criterionGAN(pred_fake, True)
+
         # L1, vgg, style loss
         loss_l1 = self.criterionL1(self.fake_pred, self.tgt_image) * self.opt.lambda_L1
-#        loss_maskL1 = self.criterionMaskL1(self.fake_pred, self.tgt_image, self.facial_mask * self.opt.lambda_mask)
+
         loss_vgg, loss_style = self.criterionVGG(self.fake_pred, self.tgt_image, style=True)
         loss_vgg = torch.mean(loss_vgg) * self.opt.lambda_feat 
         loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
+
         # feature matching loss
         loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
         
         # combine loss and calculate gradients
-        self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_style + loss_FM #+ loss_maskL1
+        self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_style + loss_FM
         self.loss_G.backward()
         
         self.loss_dict = {**self.loss_dict, **dict(zip(self.loss_names_G, [loss_l1, loss_vgg, loss_style, loss_G_GAN, loss_FM]))}
 
 
-    def optimize_parameters(self, pred_):
+    def optimize_parameters(self):
         ## ============== Update Discrimator ==================== ##
         self.set_requires_grad(self.net_D, True)  # enable backprop for D
         self.optimizer_D.zero_grad()     # set D's gradients to zero
-        self.backward_D() # calculate gradients for D
+        self.backward_D()                # calculate gradients for D
         self.optimizer_D.step()          # update D's weights
 
         ## ============== Update Generator ==================== ##

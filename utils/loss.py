@@ -10,9 +10,8 @@ Description: Some customized defined loss functions
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-import math
 import torch.nn.functional as F
-from basic_models import Vgg19
+from .basic_models import Vgg19
 
 
 class WeightedLoss(nn.Module):
