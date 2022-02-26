@@ -77,14 +77,47 @@ class FaceGenModule(object):
         ## 4) Output
         return self.loss_dict
 
-    def validate(self, data_dict, autoregressive=False):
+    def validate(self, data_dict, autoregressive=False, return_loss=False):
         ## 1) Set model to train mode
-        self.net_G.val()
+        self.net_G.eval()
 
         ## 2) Forward the network
         self.forward(data_dict)
 
-        return self.loss_dict
+        if not return_loss:
+            return self.model_output
+
+        ## 3) Calculate the loss
+        # GAN loss
+        pred_real = self.net_D(self.tgt_image)
+        pred_fake = self.net_D(self.fake_pred)
+
+        loss_G_GAN = self.criterionGAN(pred_fake, True)
+
+        # L1, vgg, style loss
+        loss_l1 = self.criterionL1(self.fake_pred, self.tgt_image) * self.opt.lambda_L1
+
+        loss_vgg = self.criterionVGG(self.fake_pred, self.tgt_image, style=False)
+        loss_vgg = torch.mean(loss_vgg) * self.opt.lambda_feat 
+        # loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
+
+        # feature matching loss
+        loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
+
+        ## Face 3DMM parameters loss
+        loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params) * 10.0
+        
+        # combine loss and calculate gradients
+        loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_FM + loss_face_3d_params
+
+        val_loss_dict = {'total_loss_G': loss_G,
+                         'loss_G_GAN': loss_G_GAN,
+                         'loss_l1': loss_l1,
+                         'loss_vgg': loss_vgg,
+                         'loss_FM': loss_FM,
+                         'loss_face_3d_params': loss_face_3d_params}
+
+        return self.model_output, val_loss_dict
 
     def inference(self, data_dict):
         pass
@@ -107,7 +140,7 @@ class FaceGenModule(object):
         self.tgt_face_3d_params = data_dict['gt_face_3d_params']
 
         ## Forward the network
-        self.model_output = self.net_G(data_dict) # Generator results
+        self.model_output = self.net_G(data_dict, shift_target_right=False) # Generator results
         
         ## Get the output
         self.fake_pred = self.model_output['face_image'] # Generator predicted face image in (B, T, 3, H, W)
@@ -170,7 +203,7 @@ class FaceGenModule(object):
         loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
 
         ## Face 3DMM parameters loss
-        loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params)
+        loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params) * 10.0
         
         # combine loss and calculate gradients
         self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_FM + loss_face_3d_params

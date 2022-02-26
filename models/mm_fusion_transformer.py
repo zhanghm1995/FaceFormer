@@ -15,7 +15,7 @@ from torch import Tensor
 import os
 import os.path as osp
 import torchaudio
-from typing import Optional, Any, Union, Callable
+from typing import Optional, Any, Union, Callable, Dict
 from torch.nn import TransformerDecoder, LayerNorm, TransformerDecoderLayer
 from .face_former_encoder import FaceFormerEncoder
 from .image_token_encoder import ImageTokenEncoder, ImageTokenEncoder224
@@ -173,7 +173,7 @@ class MMFusionFormer(nn.Module):
         return mm_embedding
 
     def decode(self, y: Tensor, encoded_x: Tensor, tgt_lengths=None,
-               shift_target_tright=True):
+               shift_target_right=True):
         """Transformer Decoder to complete the target self attention and encoded_x cross attention
 
         Args:
@@ -185,7 +185,7 @@ class MMFusionFormer(nn.Module):
         ## Permute the dimensions
         y = y.permute(1, 0, 2) # to (Sy, B, ...)
         
-        if shift_target_tright:
+        if shift_target_right:
             y = self._generate_shifted_target(y)
 
         tgt_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
@@ -196,7 +196,7 @@ class MMFusionFormer(nn.Module):
 
         return output, tgt_key_padding_mask
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict, shift_target_right=True):
         ## 1) Audio encoder
         audio_seq = data_dict['raw_audio'] # (B, L)
         encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
@@ -206,7 +206,7 @@ class MMFusionFormer(nn.Module):
 
         ## 3) MM Transformer Decoder
         output, output_mask = self.decode(tgt_multi_modal_embedding, encoded_x,
-                                          tgt_lengths=None) # output: (Sy, B, C)
+                                          tgt_lengths=None, shift_target_right=shift_target_right) # output: (Sy, B, C)
                                           
         ## Forward 2D, 3D decoder seperately
         image_2d_seq_len = data_dict['input_image'].shape[1]

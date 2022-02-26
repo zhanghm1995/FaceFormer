@@ -120,6 +120,8 @@ class Trainer:
 
         min_valid_loss, avg_val_loss = 1000.0, 2000.0
 
+        val_freq = 2
+
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
             prog_bar = tqdm(self.train_dataloader)
@@ -138,43 +140,50 @@ class Trainer:
                 global_step += 1
 
             ## Start Validation
-            if epoch % 4 == 0:
+            if epoch % val_freq == 0:
                 print("================= Start validation ==================")
                 avg_val_loss = self._val_step(epoch, global_step)
                  ## Logging by tensorboard
                 add_tensorboard_scalar(self.tb_writer, avg_val_loss, "val", global_step)
-
-            ## Saving model
-            if epoch % 4 == 0:
-                checkpoint = {
-                    'epoch': epoch + 1,
-                    'global_step': global_step + 1,
-                    'valid_loss_min': 1000.0,
-                    'state_dict': self.model.state_dict(),
-                    'optimizer': self.optimizer.state_dict(),
-                }   
-
-                if avg_val_loss < min_valid_loss:
-                    self.model_serializer.save(checkpoint, is_best=True)
-                    print(f"Saving best checkpoint in epoch {epoch} with best validation loss: {avg_val_loss}")
-                    min_valid_loss = avg_val_loss
-                else:
-                    self.model_serializer.save(checkpoint, is_best=False)
-                    print(f"Saving latest checkpoint in epoch {epoch}")
-                    
-            
-            ## Visualization
-            if epoch % 4 == 0:
+                
+                ## Visualization
                 for idx, data in enumerate(vis_val_data):
                     data_dict = {}
                     for key, value in data.items():
                         data_dict[key] = value[None]
 
-                    output = self._test_step(data_dict)
+                    output = self.model.validate(data_dict, autoregressive=False)
                     
                     output_vis = compute_visuals(data_dict, output['face_image'])
                     save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                    
+
+            ## Saving model
+            if epoch % val_freq == 0:
+                net_G_checkpoint = {
+                    'epoch': epoch + 1,
+                    'global_step': global_step + 1,
+                    'valid_loss_min': 1000.0,
+                    'state_dict': self.model.net_G.state_dict(),
+                    'optimizer': self.model.optimizer_G.state_dict(),
+                }  
+
+                net_D_checkpoint = {
+                    'epoch': epoch + 1,
+                    'global_step': global_step + 1,
+                    'valid_loss_min': 1000.0,
+                    'state_dict': self.model.net_D.state_dict(),
+                    'optimizer': self.model.optimizer_D.state_dict(),
+                } 
+
+                if avg_val_loss['total_loss_G'].item() < min_valid_loss:
+                    self.model_G_serializer.save(net_G_checkpoint, is_best=True)
+                    self.model_D_serialzier.save(net_D_checkpoint, is_best=True)
+                    print(f"Saving best checkpoint in epoch {epoch} with best validation loss: {avg_val_loss['total_loss_G'].item()}")
+                    min_valid_loss = avg_val_loss['total_loss_G'].item()
+                else:
+                    self.model_G_serializer.save(net_G_checkpoint, is_best=False)
+                    self.model_D_serialzier.save(net_D_checkpoint, is_best=False)
+                    print(f"Saving latest checkpoint in epoch {epoch}")
         print("Training Done")    
 
     def test(self):
@@ -195,61 +204,12 @@ class Trainer:
             for key, value in data.items():
                 data_dict[key] = value[None]
 
-            output = self._test_step(data_dict)
+            output = self.model.validate(data_dict, autoregressive=False)
             
             output_vis = compute_visuals(data_dict, output['face_image'])
             save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
                     
         print("Training Done")
-
-    def _test_step(self, data_dict, autoregressive=False):
-        self.model.eval()
-        
-        with torch.no_grad():
-            ## Move to GPU
-            for key, value in data_dict.items():
-                data_dict[key] = value.to(self.device)
-            
-            ## Build the input
-            masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-            masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-            data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
-
-            ## Forward the network
-            if autoregressive:
-                model_output = self.model.inference(data_dict)
-            else:
-                model_output = self.model(data_dict) # (B, T, 3, H, W)
-
-        return model_output    
-
-    def _train_step(self, data_dict):
-        self.model.train()
-
-        self.optimizer.zero_grad()
-
-        ## Move to GPU
-        for key, value in data_dict.items():
-            data_dict[key] = value.to(self.device)
-
-        ## Build the input
-        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2)
-
-        ## Forward the network
-        model_output = self.model(data_dict)
-
-        ## Calculate the loss
-        all_losses = compute_losses(data_dict, model_output, self.criterion)
-
-        total_loss = all_losses['total_loss']
-
-        ## Loss backward and update network parameters
-        total_loss.backward()
-        self.optimizer.step()
-        
-        return all_losses
 
     def _val_step(self, epoch, global_step, autoregressive=False):
         def calc_avg_loss(loss_dict_list):
@@ -270,10 +230,9 @@ class Trainer:
 
             prog_bar = tqdm(self.val_dataloader)
             for batch_data in prog_bar:
-                val_loss_dict = self.model.validate(batch_data, autoregressive)
+                _, val_loss_dict = self.model.validate(batch_data, autoregressive, return_loss=True)
 
                 loss_description_str = get_loss_description_str(val_loss_dict)
-
                 description_str = (f"Validation: Epoch: {epoch} | Iter: {global_step} | "
                                    + loss_description_str)
 
@@ -284,7 +243,7 @@ class Trainer:
             ## Get the average validation loss
             average_val_loss = calc_avg_loss(val_loss_list)
             loss_description_str = get_loss_description_str(average_val_loss)
-            print(f"Epoch: {epoch} | Iter: {global_step} | Average Validation Loss: {average_val_loss}")
+            print(f"Average Validation Loss: {loss_description_str}")
         return average_val_loss
     
 
