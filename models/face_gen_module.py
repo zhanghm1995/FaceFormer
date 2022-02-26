@@ -74,9 +74,7 @@ class FaceGenModule(object):
         ## 3) Optimize the network
         self.optimize_parameters()
 
-        ## 4) Logging
-
-        ## 5) Output
+        ## 4) Output
         return self.loss_dict
 
     def validate(self, data_dict, autoregressive=False):
@@ -116,7 +114,6 @@ class FaceGenModule(object):
         ## Get the output
         self.fake_pred = self.model_output['face_image'] # Generator predicted face image in (B, T, 3, H, W)
         self.pred_face_3d_params = self.model_output['face_3d_params']
-
 
     def optimize_parameters(self):
         ## ============== Update Discrimator ==================== ##
