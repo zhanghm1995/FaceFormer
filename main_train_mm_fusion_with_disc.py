@@ -14,10 +14,12 @@ import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
 from omegaconf import OmegaConf
+from torch.utils.tensorboard import SummaryWriter
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
 from models.mm_fusion_transformer import MMFusionFormer
 from models.face_gen_module import FaceGenModule
 from utils.model_serializer import ModelSerializer
+from typing import Dict
 from utils.save_data import save_images
 
 def compute_visuals(data_dict, output):
@@ -55,6 +57,18 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict, config
     return {'total_loss': total_loss,
             'face_2d_image_loss': face_2d_image_loss,
             'face_3d_params_loss': face_3d_params_loss}
+
+
+def get_loss_description_str(loss_dict):
+    description_str = ""
+    for key, value in loss_dict.items():
+        description_str += f"{key}: {value:0.4f} "
+    return description_str
+
+
+def add_tensorboard_scalar(writer: SummaryWriter, loss_dict: Dict, split, step):
+    for key, val in loss_dict.items():
+        writer.add_scalar(f"{split}/{key}", val, step)
 
 
 class Trainer:
@@ -104,14 +118,15 @@ class Trainer:
             prog_bar = tqdm(self.train_dataloader)
             for batch_data in prog_bar:
                 train_loss = self.model.train(batch_data)
+                loss_description_str = get_loss_description_str(train_loss)
+
                 description_str = (f"Training: Epoch: {epoch} | Iter: {global_step} | "
-                                   f"total loss: {train_loss['total_loss']:.4f} "
-                                   f"face 2d image loss: {train_loss['face_2d_image_loss']:.4f} "
-                                   f"face 3d params loss: {train_loss['face_3d_params_loss']:.4f}")
+                                   + loss_description_str)
+                
                 prog_bar.set_description(description_str)
                 
                 ## Logging by tensorboard
-                self.tb_writer.add_scalar("training_loss", train_loss['total_loss'], global_step)
+                add_tensorboard_scalar(self.tb_writer, train_loss, "train", global_step)
 
                 global_step += 1
 
@@ -120,7 +135,7 @@ class Trainer:
                 print("================= Start validation ==================")
                 avg_val_loss = self._val_step(epoch, global_step)
                  ## Logging by tensorboard
-                self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
+                add_tensorboard_scalar(self.tb_writer, avg_val_loss, "val", global_step)
 
             ## Saving model
             if epoch % 4 == 0:
