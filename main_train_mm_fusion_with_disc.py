@@ -60,6 +60,8 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict, config
 
 
 def get_loss_description_str(loss_dict):
+    assert isinstance(loss_dict, dict)
+
     description_str = ""
     for key, value in loss_dict.items():
         description_str += f"{key}: {value:0.4f} "
@@ -67,6 +69,8 @@ def get_loss_description_str(loss_dict):
 
 
 def add_tensorboard_scalar(writer: SummaryWriter, loss_dict: Dict, split, step):
+    assert isinstance(loss_dict, dict)
+
     for key, val in loss_dict.items():
         writer.add_scalar(f"{split}/{key}", val, step)
 
@@ -245,6 +249,20 @@ class Trainer:
         return all_losses
 
     def _val_step(self, epoch, global_step, autoregressive=False):
+
+        def calc_avg_loss(loss_dict_list):
+            assert len(loss_dict_list) != False, "input list length is 0"
+
+            avg_loss_dict = dict()
+
+            all_loss_keys = loss_dict_list[0].keys()
+
+            for key in all_loss_keys:
+                loss_list = [loss_dict[key] for loss_dict in loss_dict_list]
+                avg_loss_dict[key] = sum(loss_list) / len(loss_list)
+
+            return avg_loss_dict
+
         self.model.eval()
         
         with torch.no_grad():
@@ -252,28 +270,20 @@ class Trainer:
 
             prog_bar = tqdm(self.val_dataloader)
             for batch_data in prog_bar:
-                ## Move to GPU
-                for key, value in batch_data.items():
-                    batch_data[key] = value.to(self.device)
-                
-                ## Build the input
-                masked_gt_image = batch_data['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-                masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-                batch_data['input_image'] = torch.concat([masked_gt_image, batch_data['ref_face_image']], dim=2) # (B, T, 6, H, W)
+                val_loss_dict = self.model.validate(batch_data)
 
-                ## Forward the network
-                if autoregressive:
-                    model_output = self.model.inference(batch_data)
-                else:
-                    model_output = self.model(batch_data) # (B, T, 3, H, W)
+                loss_description_str = get_loss_description_str(val_loss_dict)
 
-                val_loss = compute_losses(batch_data, model_output, self.criterion)
+                description_str = (f"Validation: Epoch: {epoch} | Iter: {global_step} | "
+                                   + loss_description_str)
 
-                prog_bar.set_description(f"Validation: Epoch: {epoch} | Iter: {global_step} | Total Loss: {val_loss['total_loss']}")
+                prog_bar.set_description(description_str)
 
-                val_loss_list.append(val_loss['total_loss'])
+                val_loss_list.append(val_loss_dict)
 
-            average_val_loss = sum(val_loss_list) / len(val_loss_list)
+            ## Get the average validation loss
+            average_val_loss = calc_avg_loss(val_loss_list)
+            loss_description_str = get_loss_description_str(average_val_loss)
             print(f"Epoch: {epoch} | Iter: {global_step} | Average Validation Loss: {average_val_loss}")
         return average_val_loss
     

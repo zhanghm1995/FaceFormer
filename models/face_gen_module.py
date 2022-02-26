@@ -79,6 +79,19 @@ class FaceGenModule(object):
         ## 5) Output
         return self.loss_dict
 
+    def validate(self, data_dict, autoregressive=False):
+        ## 1) Set model to train mode
+        self.net_G.train()
+        self.net_D.train()
+
+        ## 2) Forward the network
+        self.forward(data_dict)
+
+        return self.loss_dict
+
+    def inference(self, data_dict):
+        pass
+
     def prepare_data(self, data_dict):
         ## Build the input
         masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
