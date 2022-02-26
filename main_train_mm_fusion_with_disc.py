@@ -124,6 +124,7 @@ class Trainer:
 
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
+            print(f"====================== Start train Epoch: {epoch} =======================")
             prog_bar = tqdm(self.train_dataloader)
             for batch_data in prog_bar:
                 train_loss = self.model.train(batch_data)
