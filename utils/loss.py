@@ -104,9 +104,12 @@ class VGGLoss(nn.Module):
         # self.style_weights = [10e4, 1000, 50, 15, 50]
 
     def forward(self, x, y, style=False):
-        x = torch.cat([x[:, :, i] for i in range(x.size(2))], dim=0)
-        y = torch.cat([y[:, :, i] for i in range(y.size(2))], dim=0)
+        B, T, C, H, W = x.shape
+        x = x.reshape((-1, C, H, W)) # to (B*T, C, H, W)
+        y = y.reshape((-1, C, H, W))
+        
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+
         loss = 0
         if style:
             # return both perceptual loss and style loss.

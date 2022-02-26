@@ -70,12 +70,15 @@ class Trainer:
         print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
         ## 2) Define the model
-        self.model = FaceGenModule(config, self.device).to(self.device)
+        self.model = FaceGenModule(config, self.device)
         
         ## 3) Logging
-        self.model_serializer = ModelSerializer(
-            osp.join(self.config['checkpoint_dir'], "latest_model.ckpt"),
-            osp.join(self.config['checkpoint_dir'], "best_model.ckpt"))
+        self.model_G_serializer = ModelSerializer(
+            osp.join(self.config['checkpoint_dir'], "latest_G_model.ckpt"),
+            osp.join(self.config['checkpoint_dir'], "best_G_model.ckpt"))
+        self.model_D_serialzier = ModelSerializer(
+            osp.join(self.config['checkpoint_dir'], "latest_D_model.ckpt"),
+            osp.join(self.config['checkpoint_dir'], "best_D_model.ckpt"))
 
     def train(self):
         ## 1) Define the logging
@@ -88,7 +91,8 @@ class Trainer:
         ## 2) Restore the network
         start_epoch, global_step = 1, 1
         start_epoch, global_step, _ = \
-            self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
+            self.model_G_serializer.restore(self.model.net_G, self.model.optimizer_G, load_latest=True)
+        self.model_D_serialzier.restore(self.model.net_D, self.model.optimizer_D, load_latest=True)
         
         # Get fixed batch data for visualization
         vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='val', num_sequences=2)
@@ -261,7 +265,7 @@ class Trainer:
 
 def main():
     #========= Loading Config =========#
-    config = OmegaConf.load('./config/config_2d_3d.yaml')
+    config = OmegaConf.load('./config/config_2d_3d_with_disc.yaml')
     
     #========= Create Model ============#
     model = Trainer(config)
