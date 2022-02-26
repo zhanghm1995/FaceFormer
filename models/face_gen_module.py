@@ -10,7 +10,7 @@ Description: Face generation Module class with different GAN related losses and 
 import torch
 import torch.nn as nn
 import numpy as np
-
+from typing import Dict
 from .mm_fusion_transformer import MMFusionFormer
 from .discriminators.img_gen_disc import Feature2Face_D
 from utils import loss
@@ -63,41 +63,42 @@ class FaceGenModule(object):
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
-    def train(self, data_dict):
+    def train_step(self, data_dict):
         ## 1) Set model to train mode
         self.net_G.train()
         self.net_D.train()
 
         ## 2) Forward the network
-        self.forward(data_dict)
-
-        ## 3) Optimize the network
-        self.optimize_parameters()
-
-        ## 4) Output
-        return self.loss_dict
+        model_output = self.net_G(data_dict, shift_target_right=False) # Generator results
+        return model_output
 
     def validate(self, data_dict, autoregressive=False, return_loss=False):
         ## 1) Set model to train mode
         self.net_G.eval()
 
         ## 2) Forward the network
-        self.forward(data_dict)
+        model_output = self.net_G(data_dict, shift_target_right=False) # Generator results
 
         if not return_loss:
-            return self.model_output
+            return model_output
 
         ## 3) Calculate the loss
         # GAN loss
-        pred_real = self.net_D(self.tgt_image)
-        pred_fake = self.net_D(self.fake_pred)
+        tgt_image = data_dict['gt_face_image']
+        tgt_face_3d_params = data_dict['gt_face_3d_params']
+
+        fake_pred = model_output['face_image']
+        pred_face_3d_params = model_output['face_3d_params']
+
+        pred_real = self.net_D(tgt_image)
+        pred_fake = self.net_D(fake_pred)
 
         loss_G_GAN = self.criterionGAN(pred_fake, True)
 
         # L1, vgg, style loss
-        loss_l1 = self.criterionL1(self.fake_pred, self.tgt_image) * self.opt.lambda_L1
+        loss_l1 = self.criterionL1(fake_pred, tgt_image) * self.opt.lambda_L1
 
-        loss_vgg = self.criterionVGG(self.fake_pred, self.tgt_image, style=False)
+        loss_vgg = self.criterionVGG(fake_pred, tgt_image, style=False)
         loss_vgg = torch.mean(loss_vgg) * self.opt.lambda_feat 
         # loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
 
@@ -105,7 +106,7 @@ class FaceGenModule(object):
         loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
 
         ## Face 3DMM parameters loss
-        loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params) * 10.0
+        loss_face_3d_params = self.criterionL2(pred_face_3d_params, tgt_face_3d_params) * 10.0
         
         # combine loss and calculate gradients
         loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_FM + loss_face_3d_params
@@ -117,46 +118,24 @@ class FaceGenModule(object):
                          'loss_FM': loss_FM,
                          'loss_face_3d_params': loss_face_3d_params}
 
-        return self.model_output, val_loss_dict
+        return model_output, val_loss_dict
 
     def inference(self, data_dict):
         pass
 
-    def prepare_data(self, data_dict, device):
-        ## Build the masked input
-        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
+    def optimize_parameters(self, data_dict, model_pred):
+        assert isinstance(data_dict, Dict)
 
-        ## Move to GPU
-        for key, value in data_dict.items():
-            data_dict[key] = value.to(device)
-        return data_dict
-
-    def forward(self, data_dict):
-        self.prepare_data(data_dict, self.device)
-
-        self.tgt_image = data_dict['gt_face_image']
-        self.tgt_face_3d_params = data_dict['gt_face_3d_params']
-
-        ## Forward the network
-        self.model_output = self.net_G(data_dict, shift_target_right=False) # Generator results
-        
-        ## Get the output
-        self.fake_pred = self.model_output['face_image'] # Generator predicted face image in (B, T, 3, H, W)
-        self.pred_face_3d_params = self.model_output['face_3d_params']
-
-    def optimize_parameters(self):
         ## ============== Update Discrimator ==================== ##
         self.set_requires_grad(self.net_D, True)  # enable backprop for D
         self.optimizer_D.zero_grad()     # set D's gradients to zero
-        self.backward_D()                # calculate gradients for D
+        self.backward_D(data_dict, model_pred)                # calculate gradients for D
         self.optimizer_D.step()          # update D's weights
 
         ## ============== Update Generator ==================== ##
         self.set_requires_grad(self.net_D, False)  # D requires no gradients when optimizing G
         self.optimizer_G.zero_grad()        # set G's gradients to zero
-        self.backward_G()                   # calculate graidents for G
+        self.backward_G(data_dict, model_pred)                   # calculate graidents for G
         self.optimizer_G.step()             # udpate G's weights
 
     def compute_FeatureMatching_loss(self, pred_fake, pred_real):  # feature matching loss 有利于稳定GAN训练的损失
@@ -170,11 +149,12 @@ class FaceGenModule(object):
                         self.criterionL1(pred_fake[i][j], pred_real[i][j].detach()) * self.opt.lambda_feat
         return loss_FM
 
-    def backward_D(self):
+    def backward_D(self, input_data_dict, model_pred):
         """Calculate GAN loss for the discriminator"""
         # GAN loss
-        pred_real = self.net_D(self.tgt_image)
-        pred_fake = self.net_D(self.fake_pred.detach())
+        pred_real = self.net_D(input_data_dict['gt_face_image'])
+        pred_fake = self.net_D(model_pred['face_image'].detach())
+
         loss_D_real = self.criterionGAN(pred_real, True) * 2
         loss_D_fake = self.criterionGAN(pred_fake, False)
         
@@ -184,18 +164,25 @@ class FaceGenModule(object):
         
         self.loss_D.backward()
 
-    def backward_G(self):
+    def backward_G(self, input_data_dict, model_pred):
         """Calculate GAN and other loss for the generator"""
         # GAN loss
-        pred_real = self.net_D(self.tgt_image)
-        pred_fake = self.net_D(self.fake_pred)
+        gt_image = input_data_dict['gt_face_image']
+        gt_face_3d_params = input_data_dict['gt_face_3d_params']
+
+        ## Model prediction
+        fake_pred = model_pred['face_image']
+        pred_face_3d_params = model_pred['face_3d_params']
+
+        pred_real = self.net_D(gt_image)
+        pred_fake = self.net_D(fake_pred)
 
         loss_G_GAN = self.criterionGAN(pred_fake, True)
 
         # L1, vgg, style loss
-        loss_l1 = self.criterionL1(self.fake_pred, self.tgt_image) * self.opt.lambda_L1
+        loss_l1 = self.criterionL1(fake_pred, gt_image) * self.opt.lambda_L1
 
-        loss_vgg = self.criterionVGG(self.fake_pred, self.tgt_image, style=False)
+        loss_vgg = self.criterionVGG(fake_pred, gt_image, style=False)
         loss_vgg = torch.mean(loss_vgg) * self.opt.lambda_feat 
         # loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
 
@@ -203,7 +190,7 @@ class FaceGenModule(object):
         loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
 
         ## Face 3DMM parameters loss
-        loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params) * 10.0
+        loss_face_3d_params = self.criterionL2(pred_face_3d_params, gt_face_3d_params) * 10.0
         
         # combine loss and calculate gradients
         self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_FM + loss_face_3d_params

@@ -127,7 +127,13 @@ class Trainer:
             print(f"====================== Start train Epoch: {epoch} =======================")
             prog_bar = tqdm(self.train_dataloader)
             for batch_data in prog_bar:
-                train_loss = self.model.train(batch_data)
+
+                self.prepare_data(batch_data, self.device)
+
+                model_output = self.model.train_step(batch_data)
+                self.model.optimize_parameters(batch_data, model_output)
+                train_loss = self.model.loss_dict
+
                 loss_description_str = get_loss_description_str(train_loss)
 
                 description_str = (f"Training: Epoch: {epoch} | Iter: {global_step} | "
@@ -247,6 +253,17 @@ class Trainer:
             print(f"Average Validation Loss: {loss_description_str}")
         return average_val_loss
     
+    def prepare_data(self, data_dict, device):
+        ## Build the masked input
+        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
+        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
+        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
+
+        ## Move to GPU
+        for key, value in data_dict.items():
+            data_dict[key] = value.to(device)
+        return data_dict
+
 
 def main():
     #========= Loading Config =========#
