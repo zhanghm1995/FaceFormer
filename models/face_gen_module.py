@@ -89,26 +89,25 @@ class FaceGenModule(object):
     def inference(self, data_dict):
         pass
 
-    def prepare_data(self, data_dict):
-        ## Build the input
+    def prepare_data(self, data_dict, device):
+        ## Build the masked input
         masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
         masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2)
+        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
 
         ## Move to GPU
         for key, value in data_dict.items():
-            data_dict[key] = value.to(self.device)
+            data_dict[key] = value.to(device)
         return data_dict
 
-
     def forward(self, data_dict):
-        self.data_dict = self.prepare_data(data_dict)
+        self.prepare_data(data_dict, self.device)
 
         self.tgt_image = data_dict['gt_face_image']
-        self.tgt_face_3d_params = data_dict['face_3d_params']
+        self.tgt_face_3d_params = data_dict['gt_face_3d_params']
 
         ## Forward the network
-        self.model_output = self.net_G(self.data_dict) # Generator results
+        self.model_output = self.net_G(data_dict) # Generator results
         
         ## Get the output
         self.fake_pred = self.model_output['face_image'] # Generator predicted face image in (B, T, 3, H, W)

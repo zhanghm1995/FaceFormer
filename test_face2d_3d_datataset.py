@@ -16,4 +16,3 @@ if __name__ == "__main__":
     print(len(dataset))
 
     data = dataset[180]
-    print(data.shape)

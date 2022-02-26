@@ -16,7 +16,7 @@ from .face_image_dataset import FaceImageDataset
 
 class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
-        super(Face2D3DDataset, self).__init__(data_root, split)
+        super(Face2D3DDataset, self).__init__(data_root, split, **kwargs)
 
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):

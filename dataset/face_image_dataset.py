@@ -44,7 +44,7 @@ class FaceImageDataset(Dataset):
         self.fetch_length = kwargs.get("fetch_length", 100)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
-        self.target_image_size = (96, 96)
+        self.target_image_size = (224, 224)
 
         self.build_dataset()
 

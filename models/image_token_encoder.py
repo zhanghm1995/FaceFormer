@@ -192,6 +192,151 @@ class ImageTokenEncoder(nn.Module):
         return outputs
 
 
+class ImageTokenEncoder224(nn.Module):
+    """Image tokenization encoder for input (224, 224) image
+    """
+    def __init__(self):
+        super(ImageTokenEncoder224, self).__init__()
+
+        self.face_encoder_blocks = nn.ModuleList([
+            nn.Sequential(Conv2d(6, 16, kernel_size=7, stride=1, padding=3)), # 224,224
+
+            nn.Sequential(Conv2d(16, 32, kernel_size=3, stride=2, padding=1), # 112,112
+            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True)),
+
+            nn.Sequential(Conv2d(32, 64, kernel_size=3, stride=2, padding=1),    # 56,56
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True)),
+
+            nn.Sequential(Conv2d(64, 128, kernel_size=3, stride=2, padding=1),   # 28,28
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True)),
+
+            nn.Sequential(Conv2d(128, 256, kernel_size=3, stride=2, padding=1),       # 14,14
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True)),
+
+            nn.Sequential(Conv2d(256, 256, kernel_size=3, stride=2, padding=1),     # 7,7
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),),
+            
+            nn.Sequential(Conv2d(256, 512, kernel_size=3, stride=2, padding=0),     # 3, 3
+            Conv2d(512, 512, kernel_size=1, stride=1, padding=0)),
+
+            nn.Sequential(Conv2d(512, 512, kernel_size=3, stride=1, padding=0),     # 1, 1
+            Conv2d(512, 512, kernel_size=1, stride=1, padding=0)),])
+
+        self.audio_encoder = nn.Sequential(
+            Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Conv2d(32, 64, kernel_size=3, stride=(3, 1), padding=1),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Conv2d(64, 128, kernel_size=3, stride=3, padding=1),
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Conv2d(128, 256, kernel_size=3, stride=(3, 2), padding=1),
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Conv2d(256, 512, kernel_size=3, stride=1, padding=0),
+            Conv2d(512, 512, kernel_size=1, stride=1, padding=0),)
+
+        self.face_decoder_blocks = nn.ModuleList([
+            nn.Sequential(Conv2d(512, 512, kernel_size=1, stride=1, padding=0),),
+
+            nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=1, padding=0), # 3,3
+            Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),),
+
+            nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=2, padding=0, output_padding=0),
+            Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),), # 6, 6
+
+            nn.Sequential(Conv2dTranspose(768, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
+            Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),), # 6, 6
+
+            nn.Sequential(Conv2dTranspose(768, 384, kernel_size=3, stride=2, padding=1, output_padding=1),
+            Conv2d(384, 384, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(384, 384, kernel_size=3, stride=1, padding=1, residual=True),), # 12, 12
+
+            nn.Sequential(Conv2dTranspose(512, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(256, 256, kernel_size=3, stride=1, padding=1, residual=True),), # 24, 24
+
+            nn.Sequential(Conv2dTranspose(320, 128, kernel_size=3, stride=2, padding=1, output_padding=1), 
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(128, 128, kernel_size=3, stride=1, padding=1, residual=True),), # 48, 48
+
+            nn.Sequential(Conv2dTranspose(160, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),),
+            ]) 
+
+        self.output_block = nn.Sequential(
+            Conv2d(80, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
+            nn.Sigmoid()) 
+
+    def encode(self, input: Tensor):
+        """Encode the batched input image sequences into tokens
+
+        Args:
+            input (Tensor): (B, T, 3, H, W)
+
+        Returns:
+            (Tensor): (B, T, C)
+        """
+        # input (B, T, C, H, W)
+        B, T, C, H, W = input.shape
+        input = input.reshape((-1, C, H, W))
+
+        self.feats = []
+        x = input
+        for f in self.face_encoder_blocks:
+            x = f(x)
+            self.feats.append(x)
+        
+        ## Convert to (B, T, C)
+        output = self.feats[-1] # 4-d tensor
+        output = output.reshape(B, T, -1)
+        return output
+    
+    def decode(self, input: Tensor):
+        """Decode the embedding to whole image
+
+        Args:
+            input (Tensor): (B, T, C)
+
+        Raises:
+            e: _description_
+
+        Returns:
+            Tensor: (B, T, 3, H, W)
+        """
+        B, T, C = input.shape
+
+        input = input.reshape(-1, C, 1, 1)
+        x = input
+        for f in self.face_decoder_blocks:
+            x = f(x)
+            try:
+                x = torch.cat((x, self.feats[-1]), dim=1)
+            except Exception as e:
+                raise e
+            
+            self.feats.pop()
+        
+        x = self.output_block(x) # (B, C, H, W)
+
+        output = x.reshape((B, T, 3, self.image_size, self.image_size))
+        return output
+
+
 if __name__ == "__main__":
     image_token_encoder = ImageTokenEncoder()
 

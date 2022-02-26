@@ -165,7 +165,7 @@ class MMFusionFormer(nn.Module):
         image_tokens = self.image_token_sequence_encoder(image_tokens) ## Add positional information
 
         ## 2) Get the 3D informations embedding
-        face_3d_param_embedding = self.face_3d_param_model.encode_embedding(input_dict['face_3d_params'])
+        face_3d_param_embedding = self.face_3d_param_model.encode_embedding(input_dict['ref_face_3d_params'])
 
         ## 3) Combine the 2D-3D embeddings together along the sequence dimension
         assert image_tokens.shape[2] == face_3d_param_embedding.shape[2]
