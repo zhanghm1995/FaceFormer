@@ -130,7 +130,7 @@ class FaceImageDataset(Dataset):
         
         ## Read the reference images
         img_seq_tensor = self._read_image_sequence(video_dir, ref_start_idx)
-        return img_seq_tensor
+        return img_seq_tensor, ref_start_idx
 
     def _read_image_sequence(self, video_dir, start_idx):
         img_list = []
@@ -156,7 +156,7 @@ class FaceImageDataset(Dataset):
         gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
 
         ## Get the reference image
-        ref_img_seq_tensor = self._get_reference_image(
+        ref_img_seq_tensor, _ = self._get_reference_image(
             self.total_frames_list[main_idx], choose_video, start_idx)
         
         data_dict = {}
