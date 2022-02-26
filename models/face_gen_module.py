@@ -38,8 +38,8 @@ class FaceGenModule(object):
             net_params_D = [p for p in self.net_D.parameters() if p.requires_grad]
             self.optimizer_D = torch.optim.Adam(net_params_D, lr=1e-4)
 
-            self.loss_names_G = ['L1', 'VGG', 'Style', 'loss_G_GAN', 'loss_G_FM'] # Generator loss
-            self.loss_names_D = ['D_real', 'D_fake']                              # Discriminator loss
+            self.loss_names_G = ['L1', 'VGG', 'loss_G_GAN', 'loss_G_FM', 'loss_face_3d'] # Generator loss
+            self.loss_names_D = ['D_real', 'D_fake']                     # Discriminator loss
 
             self.criterionGAN = loss.GANLoss('ls').to(device)
             self.criterionL1 = nn.L1Loss().to(device)
@@ -167,9 +167,9 @@ class FaceGenModule(object):
         # L1, vgg, style loss
         loss_l1 = self.criterionL1(self.fake_pred, self.tgt_image) * self.opt.lambda_L1
 
-        loss_vgg, loss_style = self.criterionVGG(self.fake_pred, self.tgt_image, style=True)
+        loss_vgg = self.criterionVGG(self.fake_pred, self.tgt_image, style=False)
         loss_vgg = torch.mean(loss_vgg) * self.opt.lambda_feat 
-        loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
+        # loss_style = torch.mean(loss_style) * self.opt.lambda_feat 
 
         # feature matching loss
         loss_FM = self.compute_FeatureMatching_loss(pred_fake, pred_real)
@@ -178,10 +178,12 @@ class FaceGenModule(object):
         loss_face_3d_params = self.criterionL2(self.pred_face_3d_params, self.tgt_face_3d_params)
         
         # combine loss and calculate gradients
-        self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_style + loss_FM + loss_face_3d_params
+        self.loss_G = loss_G_GAN + loss_l1 + loss_vgg + loss_FM + loss_face_3d_params
         self.loss_G.backward()
         
-        self.loss_dict = {**self.loss_dict, **dict(zip(self.loss_names_G, [loss_l1, loss_vgg, loss_style, loss_G_GAN, loss_FM]))}
+        ## Combine the discriminator and generator losses together
+        self.loss_dict = {**self.loss_dict, **dict(zip(self.loss_names_G, 
+                                                       [loss_l1, loss_vgg, loss_G_GAN, loss_FM, loss_face_3d_params]))}
 
     def _init_weights(self):
         pass

@@ -64,7 +64,10 @@ def get_loss_description_str(loss_dict):
 
     description_str = ""
     for key, value in loss_dict.items():
-        description_str += f"{key}: {value:0.4f} "
+        if isinstance(value, torch.Tensor):
+            description_str += f"{key}: {value.item():0.4f} "
+        else:
+            description_str += f"{key}: {value:0.4f} "
     return description_str
 
 

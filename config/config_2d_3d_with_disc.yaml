@@ -2,6 +2,9 @@ checkpoint_dir: work_dir/train_2d_3d_with_disc
 
 isTrain: True
 
+n_layers_D: 3
+num_D: 2
+
 discriminator:
   ndf: 64            # num of discrim filters in first conv layer
   n_layers_D: 3      # number of layers in discriminator
