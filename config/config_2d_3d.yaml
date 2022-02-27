@@ -24,6 +24,9 @@ mm_fusion_decoder:
 face_3dmm_former:
   d_input_3d_params: 64
   d_model: 128
+  n_head: 4
+  n_layer: 1
+  d_feed_forward: 1024
 
 log:
   checkpoint_dir: training_exp

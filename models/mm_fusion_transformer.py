@@ -20,6 +20,9 @@ from torch.nn import TransformerDecoder, LayerNorm, TransformerDecoderLayer
 from .face_former_encoder import FaceFormerEncoder
 from .image_token_encoder import ImageTokenEncoder, ImageTokenEncoder224
 from .pos_encoder import PositionalEncoding
+from .transformer_utils import (generate_shifted_target, 
+                                generate_subsequent_mask,
+                                generate_key_mapping_mask)
 
 
 class MMFusionDecoder(nn.Module):
@@ -66,17 +69,62 @@ class Face3DMMFormer(nn.Module):
 
         self.input_encoder = nn.Linear(d_input_3d_params, d_embedding_model)
 
-        self.output_encoder = nn.Sequential(
-            nn.Linear(512, d_embedding_model),
-            nn.ReLU(),
-            nn.Linear(d_embedding_model, d_input_3d_params))
+        # self.output_encoder = nn.Sequential(
+        #     nn.Linear(512, d_embedding_model),
+        #     nn.ReLU(),
+        #     nn.Linear(d_embedding_model, d_input_3d_params))
+
+        self.output_encoder = nn.Linear(d_embedding_model, d_input_3d_params)
 
         self.face_3d_feat_layer_norm = LayerNorm(config['d_model'])
 
         self.pos_encoder = PositionalEncoding(d_embedding_model)
 
-    def forward(self):
-        pass
+        ## Build the transformer layer
+        decoder_layer = TransformerDecoderLayer(
+            d_model=config['d_model'], nhead=config['n_head'], dim_feedforward=config['d_feed_forward'],
+            batch_first=False)
+        decoder_norm = LayerNorm(config['d_model'])
+        self.decoder = TransformerDecoder(decoder_layer, num_layers=config['n_layer'], norm=decoder_norm)
+
+    def decode(self, y: Tensor, encoded_x: Tensor,
+               trg_lengths=None, shift_target_tright=True) -> Tensor:
+        """_summary_
+
+        Args:
+            y (Tensor): (B, Sy, C)
+            encoded_x (Tensor): (Sx, B, E)
+
+        Returns:
+            Tensor: (Sy, B, E)
+        """
+        ## facial motion target decoder
+        y = y.permute(1, 0, 2) # to (Sy, B, ...)
+        
+        if shift_target_tright:
+            y = generate_shifted_target(y)
+
+        trg_mask = generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
+
+        tgt_key_padding_mask = generate_key_mapping_mask(y, trg_lengths)
+        output = self.decoder(y, encoded_x, tgt_mask=trg_mask,
+                              tgt_key_padding_mask=tgt_key_padding_mask)
+
+        return output, tgt_key_padding_mask
+
+    def forward(self, data_dict: Dict, encoded_x: Tensor):
+        face_3d_params = data_dict['gt_face_3d_params']
+        
+        ## 1) Encoding the input to get the embedding
+        embedding = self.encode_embedding(
+            face_3d_params, apply_layer_norm=False, add_positional_encoding=True)
+        
+        ## 2) Transformer attention
+        output, output_mask = self.decode(embedding, encoded_x,
+                                          trg_lengths=None)
+
+        output = self.decode_embedding(output)
+        return output
 
     def encode_embedding(self, input_seq: Tensor, apply_layer_norm=True, add_positional_encoding=True):
         """Encode the raw face 3DMM sequence parameters into embeddings
