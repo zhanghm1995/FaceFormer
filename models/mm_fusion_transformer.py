@@ -234,11 +234,11 @@ class MMFusionFormer(nn.Module):
         y = y.permute(1, 0, 2) # to (Sy, B, ...)
         
         if shift_target_right:
-            y = self._generate_shifted_target(y)
+            y = generate_shifted_target(y)
 
-        tgt_mask = self._generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
+        tgt_mask = generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
 
-        tgt_key_padding_mask = self._generate_key_mapping_mask(y, tgt_lengths)
+        tgt_key_padding_mask = generate_key_mapping_mask(y, tgt_lengths)
         output = self.mm_fusion_decoder(y, encoded_x, tgt_mask=tgt_mask,
                                         tgt_key_padding_mask=tgt_key_padding_mask)
 
@@ -275,39 +275,3 @@ class MMFusionFormer(nn.Module):
         output_dict['face_3d_params'] = output_3d_params
 
         return output_dict
-
-    def _generate_subsequent_mask(self, seq_len):
-        mask = (torch.triu(torch.ones(seq_len, seq_len)) == 1).transpose(0, 1)
-        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-        return mask
-
-    def _generate_key_mapping_mask(self, trg, lengths):
-        """_summary_
-
-        Args:
-            trg (Tensor): (Sy, B, C)
-            lengths (Tensor): (B, )
-
-        Returns:
-            Tensor: (B, Sy)
-        """
-        if lengths is None:
-            return None
-        max_len, batch_size , _ = trg.shape
-        mask = torch.arange(max_len, device=lengths.device).expand(batch_size, max_len) >= lengths[:, None]
-        return mask
-    
-    def _generate_shifted_target(self, target: Tensor):
-        """_summary_
-
-        Args:
-            target (Tensor): (Sy, B, C)
-
-        Returns:
-            _type_: shifted target with a inserted start token
-        """
-        ret = torch.zeros_like(target)
-        ret[1:, ...] = target[:-1, ...]
-        return ret
-    
-    
