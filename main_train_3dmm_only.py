@@ -19,18 +19,10 @@ from models.mm_fusion_transformer import Face3DMMFormer
 from utils.model_serializer import ModelSerializer
 from utils.save_data import save_images
 from utils.utils import get_loss_description_str
+from utils.loss import cosine_loss
 
 
-def compute_visuals(data_dict, output):
-    ## we combine input, ref, output, gt together
-    input = data_dict['input_image'][:, :, :3, :, :]
-    ref = data_dict['input_image'][:, :, 3:, :, :]
-    gt = data_dict['gt_face_image']
-    output_vis = torch.concat([input, ref, output, gt], dim=-1)
-    return output_vis
-
-
-def compute_losses(data_input: dict, model_output: dict, criterion: dict, config=None) -> dict:
+def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dict:
     """Compute all losses
 
     Args:
@@ -45,12 +37,19 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict, config
     total_loss = 0.0
 
     face_3d_params_criterion = criterion['face_3d_params']
-    face_3d_params_loss = face_3d_params_criterion(model_output['face_3d_params'], data_input['gt_face_3d_params'])
-
+    face_3d_params_loss = face_3d_params_criterion(
+        model_output['face_3d_params'], data_input['gt_face_3d_params'])
     total_loss += face_3d_params_loss
 
+    face_3d_params_cosine_criterion = criterion['similarity_loss']
+    face_3d_params_cosine_loss = face_3d_params_cosine_criterion(
+        model_output['face_3d_params'], data_input['gt_face_3d_params']) * 2.0
+    total_loss += face_3d_params_cosine_loss
+
+
     return {'total_loss': total_loss,
-            'face_3d_params_loss': face_3d_params_loss}
+            'face_3d_params_loss': face_3d_params_loss,
+            'face_3d_params_cosine_loss': face_3d_params_cosine_loss}
 
 
 class Trainer:
@@ -62,6 +61,7 @@ class Trainer:
         ## 1) Define the dataloader
         self.train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
         print(f"The training dataloader length is {len(self.train_dataloader)}")
+
         self.val_dataloader = get_2d_3d_dataset(config['dataset'], split='val')
         print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
@@ -73,7 +73,8 @@ class Trainer:
 
         ## 3) Define the loss
         self.criterion = dict()
-        self.criterion['face_3d_params'] = nn.MSELoss().to(self.device)
+        self.criterion['face_3d_params'] = nn.MSELoss(reduce="sum").to(self.device)
+        self.criterion['similarity_loss'] = cosine_loss
         
         ## 4) Logging
         self.model_serializer = ModelSerializer(
@@ -162,10 +163,10 @@ class Trainer:
         ## 1) Restore the network
         start_epoch, global_step = 1, 1
         start_epoch, global_step, _ = \
-            self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
+            self.model_serializer.restore(self.model, self.optimizer, load_best=True)
         
         # Get fixed batch data for visualization
-        vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='val', num_sequences=2)
+        vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='train', num_sequences=2)
 
         ## 2) ========= Start training ======================
         epoch = start_epoch
@@ -266,7 +267,7 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.train()
+    model.test()
 
 
 if __name__ == "__main__":
