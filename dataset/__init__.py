@@ -82,7 +82,7 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
     seq_list = list(range(len(dataset)))
     
     st = random.getstate()
-    random.seed(222)
+    random.seed(111)
     random.shuffle(seq_list)
     random.setstate(st)
 

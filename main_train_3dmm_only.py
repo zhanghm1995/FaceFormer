@@ -41,15 +41,14 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dic
         model_output['face_3d_params'], data_input['gt_face_3d_params'])
     total_loss += face_3d_params_loss
 
-    face_3d_params_cosine_criterion = criterion['similarity_loss']
-    face_3d_params_cosine_loss = face_3d_params_cosine_criterion(
-        model_output['face_3d_params'], data_input['gt_face_3d_params']) * 2.0
-    total_loss += face_3d_params_cosine_loss
+    # face_3d_params_cosine_criterion = criterion['similarity_loss']
+    # face_3d_params_cosine_loss = face_3d_params_cosine_criterion(
+    #     model_output['face_3d_params'], data_input['gt_face_3d_params']) * 2.0
+    # total_loss += face_3d_params_cosine_loss
 
 
     return {'total_loss': total_loss,
-            'face_3d_params_loss': face_3d_params_loss,
-            'face_3d_params_cosine_loss': face_3d_params_cosine_loss}
+            'face_3d_params_loss': face_3d_params_loss}
 
 
 class Trainer:
@@ -73,7 +72,7 @@ class Trainer:
 
         ## 3) Define the loss
         self.criterion = dict()
-        self.criterion['face_3d_params'] = nn.MSELoss(reduce="sum").to(self.device)
+        self.criterion['face_3d_params'] = nn.SmoothL1Loss().to(self.device)
         self.criterion['similarity_loss'] = cosine_loss
         
         ## 4) Logging
@@ -141,19 +140,6 @@ class Trainer:
                     self.model_serializer.save(checkpoint, is_best=False)
                     print(f"Saving latest checkpoint in epoch {epoch}")
                     
-            
-            # ## Visualization
-            # if epoch % 4 == 0:
-            #     for idx, data in enumerate(vis_val_data):
-            #         data_dict = {}
-            #         for key, value in data.items():
-            #             data_dict[key] = value[None]
-
-            #         output = self._test_step(data_dict)
-                    
-            #         output_vis = compute_visuals(data_dict, output['face_image'])
-            #         save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                    
         print("Training Done")    
 
     def test(self):
@@ -163,7 +149,7 @@ class Trainer:
         ## 1) Restore the network
         start_epoch, global_step = 1, 1
         start_epoch, global_step, _ = \
-            self.model_serializer.restore(self.model, self.optimizer, load_best=True)
+            self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
         
         # Get fixed batch data for visualization
         vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='train', num_sequences=2)
@@ -179,7 +165,7 @@ class Trainer:
             output = self._test_step(data_dict, autoregressive=False)
             
             ## Save the 3DMM parameters to npz file
-            face_params = output['face_3d_params'][0].cpu().numpy()
+            face_params = data_dict['gt_face_3d_params'][0].cpu().numpy()
             save_dir = osp.join(self.config['checkpoint_dir'], "vis", f"epoch_{epoch:03d}")
             os.makedirs(save_dir, exist_ok=True)
             np.savez(osp.join(save_dir, f"{idx:03d}.npz"), face=face_params)
@@ -208,6 +194,14 @@ class Trainer:
         return model_output    
 
     def _train_step(self, data_dict):
+        """Call this function in every iteration in training mode
+
+        Args:
+            data_dict (dict): dictionary contains training needed data
+
+        Returns:
+            dict: losses dictionary
+        """
         self.model.train()
 
         self.optimizer.zero_grad()
@@ -267,7 +261,11 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.test()
+
+    if not config.test_mode:
+        model.train()
+    else:
+        model.test()
 
 
 if __name__ == "__main__":

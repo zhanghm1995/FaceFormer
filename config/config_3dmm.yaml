@@ -1,4 +1,6 @@
-checkpoint_dir: work_dir/train_3dmm_less_d_feed_forward_cosine_loss
+checkpoint_dir: work_dir/train_3dmm_smooth_l1
+
+test_mode: False
 
 learning_rate: 1e-4
 decay_rate: 1.0

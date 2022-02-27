@@ -207,6 +207,23 @@ class Face3DMMFormer(nn.Module):
 
         return {'face_3d_params': output}
 
+    def forward_autoregressive(self, data_dict: Dict, shift_target_right=True):
+        ## 1) Audio encoder
+        audio_seq = data_dict['raw_audio'] # (B, L)
+        encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
+
+        ## 2) Encoding the target
+        seq_len, batch_size = encoded_x.shape[:2]
+        
+        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device) # in (B, Sy, C)
+
+        for seq_idx in range(1, seq_len):
+            y = output[:, :seq_idx]
+            dec_output = self.face_3d_param_model(y, encoded_x, 
+                                                  shift_target_right=False) # in (Sy, B, C)
+            output[:, seq_idx] = dec_output[-1:, ...]
+        return {'face_3d_params': output}
+
     def inference(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio']
