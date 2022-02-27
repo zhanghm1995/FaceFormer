@@ -192,7 +192,9 @@ class Face3DMMFormer(nn.Module):
         ## 2) Encoding the target
         output = self.face_3d_param_model(data_dict, encoded_x)
 
-        return output
+        output = output.permute(1, 0, 2) # to (B, Sy, C)
+
+        return {'face_3d_params': output}
 
 
 class MMFusionFormer(nn.Module):
