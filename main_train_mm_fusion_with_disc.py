@@ -159,6 +159,8 @@ class Trainer:
                     for key, value in data.items():
                         data_dict[key] = value[None]
 
+                    self.prepare_data(data_dict, self.device)
+
                     output = self.model.validate(data_dict, autoregressive=False)
                     
                     output_vis = compute_visuals(data_dict, output['face_image'])
@@ -237,6 +239,8 @@ class Trainer:
 
             prog_bar = tqdm(self.val_dataloader)
             for batch_data in prog_bar:
+                self.prepare_data(batch_data, self.device)
+
                 _, val_loss_dict = self.model.validate(batch_data, autoregressive, return_loss=True)
 
                 loss_description_str = get_loss_description_str(val_loss_dict)
