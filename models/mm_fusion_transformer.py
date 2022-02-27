@@ -57,7 +57,7 @@ class MMFusionDecoder(nn.Module):
         return output
 
 
-class Face3DMMFormer(nn.Module):
+class Face3DMMDecoder(nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
 
@@ -153,7 +153,47 @@ class Face3DMMFormer(nn.Module):
         output = self.output_encoder(input_seq)
         
         return output
+
+
+class Face3DMMFormer(nn.Module):
+    def __init__(self, config, device) -> None:
+        super().__init__()
+
+        ## Define the audio encoder
+        self.audio_encoder = FaceFormerEncoder(device, video_fps=25)
+
+        ## Define the 3D information embedding
+        self.face_3d_param_model = Face3DMMDecoder(config)
+
+    def encode_audio(self, x: Tensor, lengths=None, sample_rate=16000):
+        """_summary_
+
+        Args:
+            x (Tensor): (B, Sx)
+
+        Returns:
+            Tensor: (Sx, B, E)
+        """
+        if sample_rate != 16000:
+            ## resample the audio sample rate
+            x = torchaudio.functional.resample(x, 22000, 16000)
+            if lengths is not None:
+                # rescale the lengths
+                lengths = (lengths * 16000 / 22000.0).to(lengths.dtype)
         
+        enc_output = self.audio_encoder(x, lengths)
+        return enc_output.permute(1, 0, 2)
+
+    def forward(self, data_dict: Dict, shift_target_right=True):
+        ## 1) Audio encoder
+        audio_seq = data_dict['raw_audio'] # (B, L)
+        encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
+
+        ## 2) Encoding the target
+        output = self.face_3d_param_model(data_dict, encoded_x)
+
+        return output
+
 
 class MMFusionFormer(nn.Module):
     def __init__(self, config, device) -> None:
@@ -173,7 +213,7 @@ class MMFusionFormer(nn.Module):
         )
 
         ## Define the 3D information embedding
-        self.face_3d_param_model = Face3DMMFormer(config)
+        self.face_3d_param_model = Face3DMMDecoder(config)
 
         ## Define the tranformer decoder
         self.mm_fusion_decoder = MMFusionDecoder(config)

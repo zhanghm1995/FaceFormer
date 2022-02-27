@@ -8,7 +8,7 @@ Description: Test the MMFusionFormer class
 '''
 
 import torch
-from models.mm_fusion_transformer import MMFusionFormer, Face3DMMFormer
+from models.mm_fusion_transformer import Face3DMMDecoder, MMFusionFormer, Face3DMMFormer
 from omegaconf import OmegaConf
 
 
@@ -33,12 +33,12 @@ def test_MMFusionFormer():
         print(key, value.shape)
 
 
-def test_Face3DMMFormer():
+def test_Face3DMMDecoder():
     config = OmegaConf.load('./config/config_2d_3d.yaml')
 
     device = torch.device("cuda")
 
-    model = Face3DMMFormer(config).to(device)
+    model = Face3DMMDecoder(config).to(device)
 
     face_3d_params = torch.randn((2, 100, 64)).to(device)
     encoded_audio = torch.randn((100, 2, 128)).to(device)
@@ -49,6 +49,24 @@ def test_Face3DMMFormer():
 
     print(output_dict.shape)
 
+
+def test_Face3DMMFormer():
+    config = OmegaConf.load('./config/config_2d_3d.yaml')
+
+    device = torch.device("cuda")
+
+    model = Face3DMMFormer(config, device).to(device)
+
+    face_3d_params = torch.randn((2, 100, 64)).to(device)
+    raw_audio = torch.randn((2, 64000)).to(device)
+
+    data_dict = {'raw_audio': raw_audio, 'gt_face_3d_params': face_3d_params}
+
+    output_dict = model(data_dict)
+
+    print(output_dict.shape)
+
+    
 
 if __name__ == "__main__":
     test_Face3DMMFormer()
