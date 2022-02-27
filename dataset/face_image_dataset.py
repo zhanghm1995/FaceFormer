@@ -95,24 +95,30 @@ class FaceImageDataset(Dataset):
     def __len__(self):
         return sum([len(x) for x in self.all_sliced_indices])
     
-    def _slice_raw_audio(self, choose_video, sub_idx):
+    def _slice_raw_audio(self, choose_video, start_index):
         """Slice the raw whole audio into a vector with fetch length
 
         Args:
             choose_video (str): choosed video directory path
-            sub_idx (int): choosed the video start index
+            start_index (int): choosed the video start index
 
         Returns:
             np.ndarray: (M, )
         """
         audio_path = osp.join(self.data_root, choose_video, f"{osp.basename(choose_video)}.wav")
         
-        start_idx, end_idx = sub_idx, sub_idx + self.fetch_length
+        start_idx, end_idx = start_index, start_index + self.fetch_length
         audio_start_idx = round(start_idx / self.video_fps * self.audio_sample_rate)
         audio_end_idx = round(end_idx / self.video_fps * self.audio_sample_rate)
+
+        audio_idx_diff = audio_end_idx - audio_start_idx
         
         whole_audio_data = librosa.core.load(audio_path, sr=self.audio_sample_rate)[0]
         fetch_audio_data = whole_audio_data[audio_start_idx:audio_end_idx]
+
+        if len(fetch_audio_data) != audio_idx_diff:
+            return None
+        
         return fetch_audio_data
 
     def _get_reference_image(self, video_length, video_dir, choose_idx):
@@ -152,6 +158,8 @@ class FaceImageDataset(Dataset):
         start_idx = self.all_sliced_indices[main_idx][sub_idx]
 
         audio_seq = self._slice_raw_audio(choose_video, sub_idx)
+        if audio_seq is None:
+            return None
 
         ## Get the GT image
         gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)

@@ -11,6 +11,11 @@ import random
 from .voca_dataset import DataHandler
 from .voca_dataset_batcher import Batcher
 
+import torch
+
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)
 
 def get_dataset(config):
     data_handler = DataHandler(config)
@@ -65,6 +70,7 @@ def get_2d_3d_dataset(config, split):
         num_workers=config['number_workers'],
         # pin_memory=True,
         pin_memory=False,
+        collate_fn=collate_fn
     )
     return data_loader
 

@@ -218,8 +218,8 @@ class Face3DMMFormer(nn.Module):
 
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
-            dec_output, _ = self.face_3d_param_model(y, encoded_x, 
-                                                     shift_target_tright=False) # in (Sy, B, C)
+            dec_output = self.face_3d_param_model(y, encoded_x, 
+                                                     shift_target_right=False) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return {'face_3d_params': output}
 

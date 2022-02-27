@@ -69,6 +69,8 @@ class Face2D3DDataset(FaceImageDataset):
         start_idx = self.all_sliced_indices[main_idx][sub_idx] # the actual index in this video
 
         audio_seq = self._slice_raw_audio(choose_video, start_idx) # (M, )
+        if audio_seq is None:
+            return None
 
         ## Get the GT image and GT 3D face parameters
         gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)

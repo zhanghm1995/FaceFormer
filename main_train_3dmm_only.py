@@ -117,7 +117,7 @@ class Trainer:
             ## Start Validation
             if epoch % 4 == 0:
                 print("================= Start validation ==================")
-                avg_val_loss = self._val_step(epoch, global_step)
+                avg_val_loss = self._val_step(epoch, global_step, autoregressive=True)
                  ## Logging by tensorboard
                 self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
@@ -239,7 +239,8 @@ class Trainer:
             for batch_data in prog_bar:
                 ## Move to GPU
                 for key, value in batch_data.items():
-                    batch_data[key] = value.to(self.device)
+                    if key in ['raw_audio', 'gt_face_3d_params']:
+                        batch_data[key] = value.to(self.device)
                 
                 ## Forward the network
                 if autoregressive:
@@ -264,7 +265,7 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.test()
+    model.train()
 
 
 if __name__ == "__main__":
