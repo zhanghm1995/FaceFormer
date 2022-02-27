@@ -12,6 +12,14 @@ import torch
 
 
 def get_loss_description_str(loss_dict):
+    """Get the description string from a dictionary
+
+    Args:
+        loss_dict (dict): a dictionary with a name string and corresponding value
+
+    Returns:
+        str: a joined string
+    """
     assert isinstance(loss_dict, dict)
 
     description_str = ""

@@ -68,7 +68,8 @@ class Trainer:
         ## 2) Define the model and optimizer
         self.model = Face3DMMFormer(config, self.device).to(self.device)
         
-        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], lr=1e-4)
+        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
+                                    lr=1e-4)
 
         ## 3) Define the loss
         self.criterion = dict()

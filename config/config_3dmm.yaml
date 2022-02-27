@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_3dmm
+checkpoint_dir: work_dir/train_3dmm_less_d_feed_forward
 
 learning_rate: 1e-4
 decay_rate: 1.0
@@ -26,7 +26,7 @@ face_3dmm_former:
   d_model: 128
   n_head: 4
   n_layer: 1
-  d_feed_forward: 1024
+  d_feed_forward: 256
 
 log:
   checkpoint_dir: training_exp
