@@ -42,6 +42,7 @@ class FaceImageDataset(Dataset):
         self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
 
         self.fetch_length = kwargs.get("fetch_length", 100)
+        self.fetch_stride = kwargs.get("fetch_stride", 25)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
         self.target_image_size = (224, 224)
@@ -63,7 +64,7 @@ class FaceImageDataset(Dataset):
             num_frames = len(all_images_path)
             self.total_frames_list.append(num_frames)
 
-            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, stride=25)
+            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, stride=self.fetch_stride)
             self.all_sliced_indices.append(valid_indices)
 
             total_length += len(valid_indices)
@@ -77,7 +78,7 @@ class FaceImageDataset(Dataset):
         
         Returns:
             main_idx (int): index specifying which video
-            sub_idx (int): index specifying what the start index in this video
+            sub_idx (int): index specifying what the start index in this sliced video
         """
         def fetch_data(length_list, index):
             assert index < length_list[-1]

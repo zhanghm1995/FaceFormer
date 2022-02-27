@@ -72,11 +72,11 @@ def get_2d_3d_dataset(config, split):
 def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
     from .face_2d_3d_dataset import Face2D3DDataset
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
+    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=100)
     seq_list = list(range(len(dataset)))
     
     st = random.getstate()
-    random.seed(777)
+    random.seed(222)
     random.shuffle(seq_list)
     random.setstate(st)
 

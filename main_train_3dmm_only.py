@@ -155,6 +155,8 @@ class Trainer:
         print("Training Done")    
 
     def test(self):
+        import numpy as np
+        from scipy.io import wavfile
         print("================ Start testing ======================")
         ## 1) Restore the network
         start_epoch, global_step = 1, 1
@@ -172,12 +174,19 @@ class Trainer:
             for key, value in data.items():
                 data_dict[key] = value[None]
 
-            output = self._test_step(data_dict)
+            output = self._test_step(data_dict, autoregressive=False)
             
-            output_vis = compute_visuals(data_dict, output['face_image'])
-            save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                    
-        print("Training Done")
+            ## Save the 3DMM parameters to npz file
+            face_params = output['face_3d_params'][0].cpu().numpy()
+            save_dir = osp.join(self.config['checkpoint_dir'], "vis", f"epoch_{epoch:03d}")
+            os.makedirs(save_dir, exist_ok=True)
+            np.savez(osp.join(save_dir, f"{idx:03d}.npz"), face=face_params)
+
+            ## Save audio
+            audio_data = data_dict['raw_audio'][0].cpu().numpy()
+            wavfile.write(osp.join(save_dir, f"{idx:03d}.wav"), 16000, audio_data)
+
+        print("Testing Done")
 
     def _test_step(self, data_dict, autoregressive=False):
         self.model.eval()
@@ -185,12 +194,8 @@ class Trainer:
         with torch.no_grad():
             ## Move to GPU
             for key, value in data_dict.items():
-                data_dict[key] = value.to(self.device)
-            
-            ## Build the input
-            masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-            masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-            data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
+                if key in ['raw_audio', 'gt_face_3d_params']:
+                    data_dict[key] = value.to(self.device)
 
             ## Forward the network
             if autoregressive:
@@ -259,7 +264,7 @@ def main():
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.train()
+    model.test()
 
 
 if __name__ == "__main__":
