@@ -26,6 +26,18 @@ class WeightedLoss(nn.Module):
         return torch.mean(torch.pow(weighted_diff, 2))
 
 
+def cosine_loss(pred, target):
+    ## Normalize the data
+    pred = F.normalize(pred, p=2, dim=-1)
+    target = F.normalize(target, p=2, dim=-1)
+
+    cosine_score = nn.functional.cosine_similarity(pred, target, dim=-1)
+    
+    cosine_loss = 1 - cosine_score # convert to [0, 2]
+    loss = torch.mean(cosine_loss).to(pred)
+    return loss
+
+
 class GANLoss(nn.Module):
     def __init__(self, use_lsgan=True, target_real_label=1.0, target_fake_label=0.0,
                  tensor=torch.FloatTensor):

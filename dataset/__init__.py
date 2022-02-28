@@ -11,6 +11,11 @@ import random
 from .voca_dataset import DataHandler
 from .voca_dataset_batcher import Batcher
 
+import torch
+
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)
 
 def get_dataset(config):
     data_handler = DataHandler(config)
@@ -65,6 +70,7 @@ def get_2d_3d_dataset(config, split):
         num_workers=config['number_workers'],
         # pin_memory=True,
         pin_memory=False,
+        collate_fn=collate_fn
     )
     return data_loader
 
@@ -72,11 +78,11 @@ def get_2d_3d_dataset(config, split):
 def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
     from .face_2d_3d_dataset import Face2D3DDataset
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
+    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=100)
     seq_list = list(range(len(dataset)))
     
     st = random.getstate()
-    random.seed(777)
+    random.seed(111)
     random.shuffle(seq_list)
     random.setstate(st)
 

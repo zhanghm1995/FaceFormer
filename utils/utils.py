@@ -11,6 +11,26 @@ import numpy as np
 import torch
 
 
+def get_loss_description_str(loss_dict):
+    """Get the description string from a dictionary
+
+    Args:
+        loss_dict (dict): a dictionary with a name string and corresponding value
+
+    Returns:
+        str: a joined string
+    """
+    assert isinstance(loss_dict, dict)
+
+    description_str = ""
+    for key, value in loss_dict.items():
+        if isinstance(value, torch.Tensor):
+            description_str += f"{key}: {value.item():0.4f} "
+        else:
+            description_str += f"{key}: {value:0.4f} "
+    return description_str
+
+
 def tensor2im(input_image, imtype=np.uint8):
     """"Converts a Tensor array into a numpy image array.
 
