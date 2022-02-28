@@ -16,9 +16,8 @@ from torch import optim
 from tqdm import tqdm
 from omegaconf import OmegaConf
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
-from models.mm_fusion_transformer import Face3DMMFormer
+from models.mm_fusion_transformer import Face3DMMFormerMixedAudio
 from utils.model_serializer import ModelSerializer
-from utils.save_data import save_images
 from utils.utils import get_loss_description_str
 from utils.loss import cosine_loss
 
@@ -30,7 +29,6 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dic
         data_input (dict): input data dictionary
         model_output (dict): model network output
         criterion (dict): all criterions used to compute losses
-        config (_type_, optional): config parameters. Defaults to None.
 
     Returns:
         dict: computed losses dictionary
@@ -41,12 +39,6 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dic
     face_3d_params_loss = face_3d_params_criterion(
         model_output['face_3d_params'], data_input['gt_face_3d_params'])
     total_loss += face_3d_params_loss
-
-    # face_3d_params_cosine_criterion = criterion['similarity_loss']
-    # face_3d_params_cosine_loss = face_3d_params_cosine_criterion(
-    #     model_output['face_3d_params'], data_input['gt_face_3d_params']) * 2.0
-    # total_loss += face_3d_params_cosine_loss
-
 
     return {'total_loss': total_loss,
             'face_3d_params_loss': face_3d_params_loss}
@@ -66,7 +58,7 @@ class Trainer:
         print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
         ## 2) Define the model and optimizer
-        self.model = Face3DMMFormer(config, self.device).to(self.device)
+        self.model = Face3DMMFormerMixedAudio(config, self.device).to(self.device)
         
         self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
                                     lr=1e-4)
@@ -101,7 +93,7 @@ class Trainer:
 
         ## 3) ========= Start training ======================
         for epoch in range(start_epoch, self.config['epoch_num'] + 1):
-            
+            ## ================ Training ================= ##
             prog_bar = tqdm(self.train_dataloader)
             for batch_data in prog_bar:
                 train_loss = self._train_step(batch_data)
@@ -116,10 +108,10 @@ class Trainer:
 
                 global_step += 1
 
-            ## Start Validation
+            ## ================ Validation ================= ##
             if epoch % 4 == 0:
                 print("================= Start validation ==================")
-                avg_val_loss = self._val_step(epoch, global_step, autoregressive=True)
+                avg_val_loss = self._val_step(epoch, global_step, autoregressive=False)
                  ## Logging by tensorboard
                 self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
@@ -155,7 +147,7 @@ class Trainer:
         # Get fixed batch data for visualization
         vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='train', num_sequences=2)
 
-        ## 2) ========= Start training ======================
+        ## 2) ========= Start testing ======================
         epoch = start_epoch
         ## Visualization
         for idx, data in enumerate(vis_val_data):
@@ -163,7 +155,7 @@ class Trainer:
             for key, value in data.items():
                 data_dict[key] = value[None]
 
-            output = self._test_step(data_dict, autoregressive=True)
+            output = self._test_step(data_dict, autoregressive=False)
             
             ## Save the 3DMM parameters to npz file
             face_params = output['face_3d_params'][0].cpu().numpy()
@@ -183,7 +175,7 @@ class Trainer:
         with torch.no_grad():
             ## Move to GPU
             for key, value in data_dict.items():
-                if key in ['raw_audio', 'gt_face_3d_params']:
+                if key in ['raw_audio', 'ref_raw_audio', 'gt_face_3d_params', 'ref_face_3d_params']:
                     data_dict[key] = value.to(self.device)
 
             ## Forward the network
@@ -209,7 +201,7 @@ class Trainer:
 
         ## Move to GPU
         for key, value in data_dict.items():
-            if key in ['raw_audio', 'gt_face_3d_params']:
+            if key in ['raw_audio', 'ref_raw_audio', 'gt_face_3d_params', 'ref_face_3d_params']:
                 data_dict[key] = value.to(self.device)
 
         ## Forward the network
@@ -258,7 +250,7 @@ class Trainer:
 
 def main():
     #========= Loading Config =========#
-    config = OmegaConf.load('./config/config_3dmm.yaml')
+    config = OmegaConf.load('./config/config_3dmm_mixed_audio.yaml')
     
     #========= Create Model ============#
     model = Trainer(config)

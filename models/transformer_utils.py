@@ -26,7 +26,11 @@ def generate_shifted_target(target: Tensor):
 
 
 def generate_subsequent_mask(seq_len):
-    """Generate future masked matrix
+    """Generate future masked matrix like
+    [[0, -inf, -inf, -inf],
+     [0., 0,    -inf, -inf],
+     [0., 0.,   0.,   -inf],
+     [0., 0.,   0.,   -inf]]
 
     Args:
         seq_len int): sequence length

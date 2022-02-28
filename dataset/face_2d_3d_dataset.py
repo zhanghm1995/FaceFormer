@@ -68,6 +68,7 @@ class Face2D3DDataset(FaceImageDataset):
         choose_video = self.all_videos_dir[main_idx] # choosed video directory name, str type
         start_idx = self.all_sliced_indices[main_idx][sub_idx] # the actual index in this video
 
+        ## Get the GT raw audio vector
         audio_seq = self._slice_raw_audio(choose_video, start_idx) # (M, )
         if audio_seq is None:
             return None
@@ -81,11 +82,17 @@ class Face2D3DDataset(FaceImageDataset):
             self.total_frames_list[main_idx], choose_video, start_idx)
         ref_face_3d_params_tensor = self._get_face_3d_params(choose_video, ref_start_idx)
         
+        ## Geth the reference raw audio vector
+        ref_audio_seq = self._slice_raw_audio(choose_video, ref_start_idx) # (M, )
+        if ref_audio_seq is None:
+            return None
+
         data_dict = {}
         data_dict['gt_face_image'] = gt_img_seq_tensor
         data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
         data_dict['ref_face_image'] = ref_img_seq_tensor
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
+        data_dict['ref_raw_audio'] = torch.tensor(ref_audio_seq.astype(np.float32))
         return data_dict
 

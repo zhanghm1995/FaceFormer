@@ -17,7 +17,7 @@ import os.path as osp
 import torchaudio
 from typing import Optional, Any, Union, Callable, Dict
 from torch.nn import TransformerDecoder, LayerNorm, TransformerDecoderLayer
-from .face_former_encoder import FaceFormerEncoder
+from .face_former_encoder import FaceFormerEncoder, FaceFormerEncoderMixedAudio
 from .image_token_encoder import ImageTokenEncoder, ImageTokenEncoder224
 from .pos_encoder import PositionalEncoding
 from .transformer_utils import (generate_shifted_target, 
@@ -94,8 +94,8 @@ class Face3DMMDecoder(nn.Module):
         decoder_norm = LayerNorm(config['d_model'])
         self.decoder = TransformerDecoder(decoder_layer, num_layers=config['n_layer'], norm=decoder_norm)
 
-    def decode(self, y: Tensor, encoded_x: Tensor,
-               trg_lengths=None) -> Tensor:
+    def _decode(self, y: Tensor, encoded_x: Tensor,
+               tgt_lengths=None, need_tgt_mask=True) -> Tensor:
         """_summary_
 
         Args:
@@ -105,16 +105,20 @@ class Face3DMMDecoder(nn.Module):
         Returns:
             Tensor: (Sy, B, E)
         """
-        tgt_mask = generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
+        if need_tgt_mask:
+            tgt_mask = generate_subsequent_mask(len(y)).to(y.device) # (Sy, B, C)
+        else:
+            tgt_mask = None
 
-        tgt_key_padding_mask = generate_key_mapping_mask(y, trg_lengths)
+        tgt_key_padding_mask = generate_key_mapping_mask(y, tgt_lengths)
         output = self.decoder(y, encoded_x, tgt_mask=tgt_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask)
 
         return output, tgt_key_padding_mask
 
     def forward(self, y: Tensor, encoded_x: Tensor,
-                shift_target_right=True):
+                shift_target_right=True,
+                need_tgt_mask=True):
         """Forward the decoder
 
         Args:
@@ -132,12 +136,15 @@ class Face3DMMDecoder(nn.Module):
             y = generate_shifted_target(y)
 
         ## 2) Encoding the input to get the embedding
-        embedding = self.encode_embedding(
-            y, apply_layer_norm=False, add_positional_encoding=True) # in (Sy, B, E)
+        embedding = self.encode_embedding(y, 
+                                          apply_layer_norm=False, 
+                                          apply_style_encoding=False,
+                                          add_positional_encoding=True) # in (Sy, B, E)
         
         ## 2) Transformer attention
-        output, output_mask = self.decode(embedding, encoded_x,
-                                          trg_lengths=None)
+        output, output_mask = self._decode(embedding, encoded_x,
+                                           tgt_lengths=None,
+                                           need_tgt_mask=need_tgt_mask)
 
         output = self.decode_embedding(output) # (Sy, B, C)
         return output
@@ -251,7 +258,8 @@ class Face3DMMFormer(nn.Module):
         for seq_idx in range(1, seq_len):
             y = output[:, :seq_idx]
             dec_output = self.face_3d_param_model(y, encoded_x, 
-                                                     shift_target_right=False) # in (Sy, B, C)
+                                                 shift_target_right=False,
+                                                 need_tgt_mask=False) # in (Sy, B, C)
             output[:, seq_idx] = dec_output[-1:, ...]
         return {'face_3d_params': output}
 
@@ -266,7 +274,111 @@ class Face3DMMFormer(nn.Module):
 
         for _ in range(seq_len):
             dec_output = self.face_3d_param_model(output, encoded_x, 
+                                                  shift_target_right=False,
+                                                  need_tgt_mask=False) # in (Sy, B, C)
+            
+            dec_output = dec_output.permute(1, 0, 2)
+            output = torch.concat([output, dec_output[:, -1:, :]], dim=1)
+        
+        output = output[:, 1:, :]
+        return {'face_3d_params': dec_output}
+
+
+class Face3DMMFormerMixedAudio(nn.Module):
+    def __init__(self, config, device) -> None:
+        super().__init__()
+
+        ## Define the audio encoder
+        self.audio_encoder = FaceFormerEncoderMixedAudio(device, video_fps=25)
+
+        ## Define the 3D information embedding
+        self.face_3d_param_model = Face3DMMDecoder(config)
+
+    def encode_audio(self, x: Tensor, lengths=None, sample_rate=16000):
+        """_summary_
+
+        Args:
+            x (Tensor): (B, Sx)
+
+        Returns:
+            Tensor: (Sx, B, E)
+        """
+        if sample_rate != 16000:
+            ## resample the audio sample rate
+            x = torchaudio.functional.resample(x, 22000, 16000)
+            if lengths is not None:
+                # rescale the lengths
+                lengths = (lengths * 16000 / 22000.0).to(lengths.dtype)
+        
+        enc_output = self.audio_encoder(x, lengths)
+        return enc_output.permute(1, 0, 2)
+
+    def forward(self, data_dict: Dict):
+        ## 1) Audio encoder
+        audio_seq = data_dict['raw_audio'] # (B, L)
+        ref_audio_seq = data_dict['ref_raw_audio']
+        
+        mixed_audio_seq = torch.cat([audio_seq, ref_audio_seq], dim=0)
+
+        encoded_x = self.encode_audio(mixed_audio_seq, lengths=None) # (Sx, B, E)
+
+        ## 2) Encoding the target
+        face_3d_params = data_dict['ref_face_3d_params'] ## target sequence
+        output = self.face_3d_param_model(face_3d_params, encoded_x,
+                                          shift_target_right=False,
+                                          need_tgt_mask=False)
+
+        output = output.permute(1, 0, 2) # to (B, Sy, C)
+
+        return {'face_3d_params': output}
+
+    def forward_autoregressive(self, data_dict: Dict, shift_target_right=True):
+        ## 1) Audio encoder
+        audio_seq = data_dict['raw_audio'] # (B, L)
+        encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
+
+        ## 2) Encoding the target
+        seq_len, batch_size = encoded_x.shape[:2]
+        
+        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device) # in (B, Sy, C)
+
+        for seq_idx in range(1, seq_len):
+            y = output[:, :seq_idx]
+            dec_output = self.face_3d_param_model(y, encoded_x, 
                                                   shift_target_right=False) # in (Sy, B, C)
+            output[:, seq_idx] = dec_output[-1:, ...]
+        return {'face_3d_params': output}
+
+    def inference(self, data_dict):
+        ## audio source encoder
+        audio_seq = data_dict['raw_audio']
+        encoded_x = self.encode_audio(audio_seq, lengths=None)
+
+        seq_len, batch_size = encoded_x.shape[:2]
+        
+        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device)
+
+        for seq_idx in range(1, seq_len):
+            y = output[:, :seq_idx]
+            dec_output = self.face_3d_param_model(y, encoded_x, 
+                                                 shift_target_right=False,
+                                                 need_tgt_mask=False) # in (Sy, B, C)
+            output[:, seq_idx] = dec_output[-1:, ...]
+        return {'face_3d_params': output}
+
+    def inference_new(self, data_dict): # TODO
+        ## audio source encoder
+        audio_seq = data_dict['raw_audio']
+        encoded_x = self.encode_audio(audio_seq, lengths=None)
+
+        seq_len, batch_size = encoded_x.shape[:2]
+        
+        output = torch.zeros((batch_size, 1, 64)).to(encoded_x.device)
+
+        for _ in range(seq_len):
+            dec_output = self.face_3d_param_model(output, encoded_x, 
+                                                  shift_target_right=False,
+                                                  need_tgt_mask=False) # in (Sy, B, C)
             
             dec_output = dec_output.permute(1, 0, 2)
             output = torch.concat([output, dec_output[:, -1:, :]], dim=1)

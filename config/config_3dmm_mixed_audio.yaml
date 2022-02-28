@@ -1,6 +1,6 @@
-checkpoint_dir: work_dir/train_3dmm_with_style_embedding
+checkpoint_dir: work_dir/train_3dmm_mixed_audio
 
-test_mode: True
+test_mode: False
 
 learning_rate: 1e-4
 decay_rate: 1.0
