@@ -80,6 +80,13 @@ class Face3DMMDecoder(nn.Module):
 
         self.pos_encoder = PositionalEncoding(d_embedding_model)
 
+        ## Define the one-hot subject index
+        index = 0
+        self.subject_idx_one_hot = torch.zeros((1, 8), dtype=torch.float32)
+        self.subject_idx_one_hot[:, index] = 1
+
+        self.style_embedding = nn.Linear(8, d_embedding_model) # use to embedding the one-hot style
+
         ## Build the transformer layer
         decoder_layer = TransformerDecoderLayer(
             d_model=config['d_model'], nhead=config['n_head'], dim_feedforward=config['d_feed_forward'],
@@ -135,7 +142,10 @@ class Face3DMMDecoder(nn.Module):
         output = self.decode_embedding(output) # (Sy, B, C)
         return output
 
-    def encode_embedding(self, input_seq: Tensor, apply_layer_norm=True, add_positional_encoding=True):
+    def encode_embedding(self, input_seq: Tensor, 
+                         apply_layer_norm=True, 
+                         apply_style_encoding=True,
+                         add_positional_encoding=True):
         """Encode the raw face 3DMM sequence parameters into embeddings
 
         Args:
@@ -147,6 +157,11 @@ class Face3DMMDecoder(nn.Module):
         """
         ## Get the embeddings
         embedding = self.input_encoder(input_seq)
+
+        if apply_style_encoding:
+            T, B = input_seq.shape[:2]
+            subject_idx_tensor = self.subject_idx_one_hot.repeat((T, B, 1)).to(embedding)
+            embedding += self.style_embedding(subject_idx_tensor)
 
         ## Apply the Layer Norm
         if apply_layer_norm:
@@ -199,7 +214,7 @@ class Face3DMMFormer(nn.Module):
         encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
 
         ## 2) Encoding the target
-        face_3d_params = data_dict['gt_face_3d_params']
+        face_3d_params = data_dict['gt_face_3d_params'] ## target sequence
         output = self.face_3d_param_model(face_3d_params, encoded_x,
                                           shift_target_right=shift_target_right)
 

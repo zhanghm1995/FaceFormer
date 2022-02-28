@@ -73,7 +73,7 @@ class Trainer:
 
         ## 3) Define the loss
         self.criterion = dict()
-        self.criterion['face_3d_params'] = nn.SmoothL1Loss().to(self.device)
+        self.criterion['face_3d_params'] = nn.SmoothL1Loss(reduction="sum").to(self.device)
         self.criterion['similarity_loss'] = cosine_loss
         
         ## 4) Logging
