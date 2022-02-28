@@ -9,6 +9,7 @@ Description: Train the audio to 3DMM only transformer
 
 import os
 import os.path as osp
+from pickle import FALSE
 import torch
 import torch.nn as nn
 from torch import optim
@@ -162,10 +163,10 @@ class Trainer:
             for key, value in data.items():
                 data_dict[key] = value[None]
 
-            output = self._test_step(data_dict, autoregressive=False)
+            output = self._test_step(data_dict, autoregressive=True)
             
             ## Save the 3DMM parameters to npz file
-            face_params = data_dict['gt_face_3d_params'][0].cpu().numpy()
+            face_params = output['face_3d_params'][0].cpu().numpy()
             save_dir = osp.join(self.config['checkpoint_dir'], "vis", f"epoch_{epoch:03d}")
             os.makedirs(save_dir, exist_ok=True)
             np.savez(osp.join(save_dir, f"{idx:03d}.npz"), face=face_params)

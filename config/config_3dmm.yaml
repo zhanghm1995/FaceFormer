@@ -1,6 +1,6 @@
-checkpoint_dir: work_dir/train_3dmm_smooth_l1
+checkpoint_dir: work_dir/train_3dmm_smooth_l1_fix_bug
 
-test_mode: False
+test_mode: True
 
 learning_rate: 1e-4
 decay_rate: 1.0
