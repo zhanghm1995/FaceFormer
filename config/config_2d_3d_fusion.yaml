@@ -3,7 +3,7 @@ checkpoint_dir: work_dir/train_2d_3d_fusion_with_val_debug
 test_mode: False
 
 ## Trainer parameters
-check_val_every_n_epoch: 2
+check_val_every_n_epoch: 4
 max_epochs: 100
 
 lr: 0.0001

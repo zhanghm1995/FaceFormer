@@ -120,7 +120,7 @@ class Face2D3DFusion(pl.LightningModule):
 
          ## 3) Save the video
         save_image_array_to_video(model_output['face_2d_image'],
-                                  osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch}"),
+                                  osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch:03d}"),
                                   audio_array=batch['raw_audio'])
 
     def test_step(self, batch, batch_idx):
@@ -155,6 +155,7 @@ class Face2D3DFusion(pl.LightningModule):
 
         total_loss = loss_3d + loss_2d
         
+        self.log('total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log('loss_s', loss_s, on_step=True, on_epoch=True, prog_bar=False)
         self.log('lossg_e', lossg_e, on_step=True, on_epoch=True, prog_bar=False)
         self.log('lossg_em', lossg_em, on_step=True, on_epoch=True, prog_bar=False)
