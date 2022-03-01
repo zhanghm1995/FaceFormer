@@ -135,9 +135,7 @@ class FaceImageDataset(Dataset):
         ### randomly choose one start index
         ref_start_idx = random.sample(valid_indices, k=1)[0]
         
-        ## Read the reference images
-        img_seq_tensor = self._read_image_sequence(video_dir, ref_start_idx)
-        return img_seq_tensor, ref_start_idx
+        return ref_start_idx
 
     def _read_image_sequence(self, video_dir, start_idx):
         img_list = []

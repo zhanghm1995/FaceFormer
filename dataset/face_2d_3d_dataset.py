@@ -17,6 +17,8 @@ from .face_image_dataset import FaceImageDataset
 class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
         super(Face2D3DDataset, self).__init__(data_root, split, **kwargs)
+        
+        self.need_load_image = kwargs.get("need_load_image", True)
 
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):
@@ -74,12 +76,14 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         ## Get the GT image and GT 3D face parameters
-        gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
+        # gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
         gt_face_3d_params_tensor = self._get_face_3d_params(choose_video, start_idx)
 
         ## Get the reference image and reference 3D face parameters
-        ref_img_seq_tensor, ref_start_idx = self._get_reference_image(
+        ref_start_idx = self._get_reference_image(
             self.total_frames_list[main_idx], choose_video, start_idx)
+        ## Read the reference images
+        # ref_img_seq_tensor = self._read_image_sequence(choose_video, ref_start_idx)
         ref_face_3d_params_tensor = self._get_face_3d_params(choose_video, ref_start_idx)
         
         ## Geth the reference raw audio vector
@@ -88,9 +92,9 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         data_dict = {}
-        data_dict['gt_face_image'] = gt_img_seq_tensor
+        # data_dict['gt_face_image'] = gt_img_seq_tensor
         data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
-        data_dict['ref_face_image'] = ref_img_seq_tensor
+        # data_dict['ref_face_image'] = ref_img_seq_tensor
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         data_dict['ref_raw_audio'] = torch.tensor(ref_audio_seq.astype(np.float32))

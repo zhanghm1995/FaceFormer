@@ -37,11 +37,19 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dic
 
     face_3d_params_criterion = criterion['face_3d_params']
     face_3d_params_loss = face_3d_params_criterion(
-        model_output['face_3d_params'], data_input['gt_face_3d_params'])
+        model_output['face_3d_params'], data_input['gt_face_3d_params']) * 20.0
     total_loss += face_3d_params_loss
 
+    face_3d_params_diff_criterion = criterion['face_3d_params_diff']
+    model_output_diff = model_output['face_3d_params'][:, 1:, :] - model_output['face_3d_params'][:, :-1, :]
+    gt_diff = data_input['gt_face_3d_params'][:, 1:, :] - data_input['gt_face_3d_params'][:, :-1, :]
+    face_3d_params_diff_loss = face_3d_params_diff_criterion(
+        model_output_diff, gt_diff) * 200.0
+    total_loss += face_3d_params_diff_loss
+
     return {'total_loss': total_loss,
-            'face_3d_params_loss': face_3d_params_loss}
+            'face_3d_params_loss': face_3d_params_loss,
+            'face_3d_params_diff_loss': face_3d_params_diff_loss}
 
 
 class Trainer:
@@ -61,12 +69,12 @@ class Trainer:
         self.model = Face3DMMFormerMixedAudio(config, self.device).to(self.device)
         
         self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
-                                    lr=1e-4)
+                                    lr=1e-6)
 
         ## 3) Define the loss
         self.criterion = dict()
-        self.criterion['face_3d_params'] = nn.SmoothL1Loss(reduction="sum").to(self.device)
-        self.criterion['similarity_loss'] = cosine_loss
+        self.criterion['face_3d_params'] = nn.MSELoss().to(self.device)
+        self.criterion['face_3d_params_diff'] = nn.MSELoss().to(self.device) 
         
         ## 4) Logging
         self.model_serializer = ModelSerializer(
@@ -109,14 +117,14 @@ class Trainer:
                 global_step += 1
 
             ## ================ Validation ================= ##
-            if epoch % 4 == 0:
+            if epoch % 2 == 0:
                 print("================= Start validation ==================")
                 avg_val_loss = self._val_step(epoch, global_step, autoregressive=False)
                  ## Logging by tensorboard
                 self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
             ## Saving model
-            if epoch % 4 == 0:
+            if epoch % 2 == 0:
                 checkpoint = {
                     'epoch': epoch + 1,
                     'global_step': global_step + 1,
@@ -158,7 +166,7 @@ class Trainer:
             output = self._test_step(data_dict, autoregressive=False)
             
             ## Save the 3DMM parameters to npz file
-            face_params = output['face_3d_params'][0].cpu().numpy()
+            face_params = data_dict['gt_face_3d_params'][0].cpu().numpy()
             save_dir = osp.join(self.config['checkpoint_dir'], "vis", f"epoch_{epoch:03d}")
             os.makedirs(save_dir, exist_ok=True)
             np.savez(osp.join(save_dir, f"{idx:03d}.npz"), face=face_params)
@@ -228,7 +236,7 @@ class Trainer:
             for batch_data in prog_bar:
                 ## Move to GPU
                 for key, value in batch_data.items():
-                    if key in ['raw_audio', 'gt_face_3d_params']:
+                    if key in ['raw_audio', 'ref_raw_audio', 'gt_face_3d_params', 'ref_face_3d_params']:
                         batch_data[key] = value.to(self.device)
                 
                 ## Forward the network

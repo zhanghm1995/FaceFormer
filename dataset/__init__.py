@@ -10,6 +10,7 @@ Description:
 import random
 from .voca_dataset import DataHandler
 from .voca_dataset_batcher import Batcher
+from torch.utils.data import DataLoader
 
 import torch
 
@@ -60,7 +61,6 @@ def get_random_fixed_2d_dataset(config, split, num_sequences):
 
 def get_2d_3d_dataset(config, split):
     from .face_2d_3d_dataset import Face2D3DDataset
-    from torch.utils.data import DataLoader
 
     dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
     data_loader = DataLoader(
@@ -89,7 +89,19 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
     if num_sequences > 0 and num_sequences < len(dataset):
         seq_list = seq_list[:num_sequences]
     
-    data_list = []
+    sub_dataset = []
     for idx in seq_list:
-        data_list.append(dataset[idx])
+        sub_dataset.append(dataset[idx])
+
+    data_loader = DataLoader(
+        sub_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+        collate_fn=collate_fn
+    )
+    return data_loader
+
     return data_list

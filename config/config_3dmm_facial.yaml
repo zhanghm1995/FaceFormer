@@ -1,6 +1,12 @@
-checkpoint_dir: work_dir/train_3dmm_mixed_audio_mean_smoothl1
+checkpoint_dir: work_dir/train_3dmm_facial
 
-test_mode: False
+test_mode: True
+
+lr: 0.0001
+optimizer: Adam
+lr_decay_step: 12
+lr_decay_rate: 0.2
+wd: 0
 
 learning_rate: 1e-4
 decay_rate: 1.0
@@ -11,7 +17,7 @@ num_render_sequences: 3
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 8
+  batch_size: 16
   number_workers: 4
 
 
