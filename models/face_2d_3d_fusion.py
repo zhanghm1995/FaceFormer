@@ -22,7 +22,7 @@ import numpy as np
 from .face_former_encoder import Wav2Vec2Encoder
 from .resnet_embedding import ResNetEmbedding
 from .face_2d_3d_xfomer import Face2D3DXFormer
-
+from utils.save_data import save_image_array_to_video, save_video
 
 class Face2D3DFusion(pl.LightningModule):
     """Generate the face image in by fusion 2D-3D information"""
@@ -106,21 +106,13 @@ class Face2D3DFusion(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        from scipy.io import wavfile
-
         ## 1) Forward the network
         model_output = self(batch)
 
         ## 2) Visualization
-        ## Save the 3DMM parameters to npz file
-        face_params = model_output['face_3d_params'][0].cpu().numpy()
-        save_dir = osp.join(self.config['checkpoint_dir'], "vis")
-        os.makedirs(save_dir, exist_ok=True)
-        np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=face_params)
-
-        ## Save audio
-        audio_data = batch['raw_audio'][0].cpu().numpy()
-        wavfile.write(osp.join(save_dir, f"{batch_idx:03d}.wav"), 16000, audio_data)
+        save_image_array_to_video(model_output['face_2d_image'],
+                                  osp.join(self.config['checkpoint_dir'], "vis"),
+                                  audio_array=batch['raw_audio'])
 
     def compute_loss(self, data_dict, model_output):
         ## 3D loss

@@ -13,6 +13,8 @@ import cv2
 import subprocess
 from tqdm import tqdm
 from .utils import tensor2im
+from scipy.io import wavfile
+
 
 def save_video(image, output_video_fname, image_size=512, 
                audio_fname=None, audio_data=None, audio_sample_rate=16000):
@@ -32,7 +34,49 @@ def save_video(image, output_video_fname, image_size=512,
     print("Save video done!")
 
 
+def save_image_array_to_video(image_array, output_dir, fps=25, audio_array=None, audio_sample_rate=16000):
+    
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(image_array.shape)
+
+    for i in range(image_array.shape[0]):
+        tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=output_dir)
+        for frame in range(image_array.shape[1]):
+            image_numpy = tensor2im(image_array[i][frame])
+            
+            if frame == 0:
+                img_shape = image_numpy.shape[:2]
+                writer = cv2.VideoWriter(tmp_video_file.name, 
+                                         cv2.VideoWriter_fourcc(*'mp4v'), 
+                                         fps, img_shape, True)
+            writer.write(image_numpy)
+        
+        writer.release()
+
+        output_video_fname = osp.join(output_dir, f"{i:03d}.mp4")
+        ## Combine the audio
+        if audio_array is not None:
+            tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=output_dir)
+            audio_data = audio_array[i].cpu().numpy()
+            wavfile.write(tmp_audio_file.name, audio_sample_rate, audio_data)
+
+            cmd = f'ffmpeg -y -i {tmp_audio_file.name} -i {tmp_video_file.name} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p {output_video_fname}'
+        else:
+            cmd = f'ffmpeg -y -i {tmp_video_file.name} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p {output_video_fname}'
+        subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def save_images(image_tensor, save_dir, epoch, global_step=None, name=None):
+    """Save batched images
+
+    Args:
+        image_tensor (Tensor): (B, T, 3, H, W), T is the frames
+        save_dir (str): save root directory
+        epoch (int): epoch number
+        global_step (_type_, optional): _description_. Defaults to None.
+        name (_type_, optional): _description_. Defaults to None.
+    """
     for i in range(image_tensor.shape[0]):
         for frame in range(image_tensor.shape[1]):
             image_numpy = tensor2im(image_tensor[i][frame])

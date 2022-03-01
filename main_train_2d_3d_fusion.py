@@ -33,11 +33,11 @@ if not config['test_mode']:
 
     predictions = trainer.fit(model, train_dataloader)
 else:
-    test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=2)
+    test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")
 
-    model = model.load_from_checkpoint(osp.join(config['checkpoint_dir'], "lightning_logs/version_3/checkpoints/epoch=232-step=6290.ckpt"), 
+    model = model.load_from_checkpoint("work_dir/train_2d_3d_fusion/lightning_logs/version_0/checkpoints_test/epoch=31-step=27139.ckpt", 
                                        config=config)
     
-    trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'])
+    trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'], logger=None)
     trainer.test(model, test_dataloader)
