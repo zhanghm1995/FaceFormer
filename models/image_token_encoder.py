@@ -264,6 +264,8 @@ class ImageTokenEncoder224(nn.Module):
             Conv2d(80, 32, kernel_size=3, stride=1, padding=1),
             nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
             nn.Sigmoid()) 
+        
+        self.audio_fc = nn.Linear(128, 512)
 
     def encode(self, input: Tensor):
         """Encode the batched input image sequences into tokens
@@ -316,6 +318,42 @@ class ImageTokenEncoder224(nn.Module):
         
         x = self.output_block(x) # (B, C, H, W)
 
+        output = x.reshape((B, T, 3, self.image_size, self.image_size))
+        return output
+
+    def forward(self, audio_embedding, face_sequences):
+        """Generate the image by using audio embedding and masked face sequences
+
+        Args:
+            audio_embedding (_type_): (B, S, E)
+            face_sequences (Tensor): (B, T, 3, 224, 224)
+
+        Raises:
+            e: _description_
+        """
+        B, T, C, H, W = face_sequences.shape
+        face_sequences = face_sequences.reshape((-1, C, H, W))
+
+        feats = []
+        x = face_sequences
+        for f in self.face_encoder_blocks:
+            x = f(x)
+            feats.append(x)
+        
+        x = self.audio_fc(audio_embedding)[..., None, None]
+        B, T, C = x.shape[:3]
+
+        x = x.reshape(-1, C, 1, 1)
+        for f in self.face_decoder_blocks:
+            x = f(x)
+            try:
+                x = torch.cat((x, feats[-1]), dim=1)
+            except Exception as e:
+                raise e
+            
+            feats.pop()
+        
+        x = self.output_block(x)
         output = x.reshape((B, T, 3, self.image_size, self.image_size))
         return output
 

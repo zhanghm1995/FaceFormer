@@ -76,7 +76,7 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         ## Get the GT image and GT 3D face parameters
-        # gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
+        gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
         gt_face_3d_params_tensor = self._get_face_3d_params(choose_video, start_idx)
 
         ## Get the reference image and reference 3D face parameters
@@ -92,7 +92,7 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         data_dict = {}
-        # data_dict['gt_face_image'] = gt_img_seq_tensor
+        data_dict['gt_face_image'] = gt_img_seq_tensor
         data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
         # data_dict['ref_face_image'] = ref_img_seq_tensor
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
