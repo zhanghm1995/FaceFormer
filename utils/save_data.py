@@ -38,8 +38,6 @@ def save_image_array_to_video(image_array, output_dir, fps=25, audio_array=None,
     
     os.makedirs(output_dir, exist_ok=True)
 
-    print(image_array.shape)
-
     for i in range(image_array.shape[0]):
         tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=output_dir)
         for frame in range(image_array.shape[1]):

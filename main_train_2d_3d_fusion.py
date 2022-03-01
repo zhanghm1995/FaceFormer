@@ -20,6 +20,8 @@ config = OmegaConf.load('./config/config_2d_3d_fusion.yaml')
 model = Face2D3DFusion(config)
 
 if not config['test_mode']:
+    print(f"{'='*25} Start Traning, Good Luck! {'='*25}")
+
     ## ======================= Training ======================= ##
     ## 1) Define the dataloader
     train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
@@ -28,10 +30,12 @@ if not config['test_mode']:
     val_dataloader = get_2d_3d_dataset(config['dataset'], split='val')
     print(f"The validation dataloader length is {len(val_dataloader)}")
 
-    trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'])
+    trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
+                         max_epochs=config.max_epochs,
+                         check_val_every_n_epoch=config.check_val_every_n_epoch)
     # trainer = pl.Trainer(gpus=4, default_root_dir=config['checkpoint_dir'], accelerator="gpu", strategy="ddp")
 
-    predictions = trainer.fit(model, train_dataloader)
+    predictions = trainer.fit(model, train_dataloader, val_dataloader)
 else:
     test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")
