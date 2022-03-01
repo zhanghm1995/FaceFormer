@@ -10,7 +10,7 @@ Description: Face 2D-3D Cross-Modal transformer
 from xml.etree.ElementInclude import include
 import torch.nn as nn
 from torch.nn import TransformerEncoder, LayerNorm, TransformerEncoderLayer
-from .image_token_encoder import ImageTokenEncoder224
+from .image_token_encoder import ImageTokenEncoder192
 
 
 class Face2D3DXFormer(nn.Module):
@@ -34,7 +34,7 @@ class Face2D3DXFormer(nn.Module):
         self.output_fc = nn.Linear(128, 64)
 
         ## Define the 2D Decoder
-        self.face_2d_decoder = ImageTokenEncoder224(in_ch=3)
+        self.face_2d_decoder = ImageTokenEncoder192(in_ch=3)
     
     def forward(self, x, masked_image):
         x = self.encoder(x, mask=None, src_key_padding_mask=None) # (2S, B, E)

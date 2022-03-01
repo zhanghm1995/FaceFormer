@@ -17,7 +17,7 @@ num_render_sequences: 3
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 1
+  batch_size: 2
   number_workers: 4
 
 

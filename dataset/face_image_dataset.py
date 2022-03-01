@@ -41,11 +41,11 @@ class FaceImageDataset(Dataset):
 
         self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
 
-        self.fetch_length = kwargs.get("fetch_length", 100)
+        self.fetch_length = kwargs.get("fetch_length", 75)
         self.fetch_stride = kwargs.get("fetch_stride", 25)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
-        self.target_image_size = (224, 224)
+        self.target_image_size = (192, 192)
 
         self.build_dataset()
 
