@@ -88,7 +88,11 @@ class Face2D3DFusion(pl.LightningModule):
         fusion_embedding = torch.concat([audio_face_3d_embedding, audio_face_image_embedding], dim=0) # (2S, B, E)
 
         ## 4) Decoder
-        model_output_dict = self.face_2d_3d_xformer(fusion_embedding, data_dict['gt_face_image'])
+        ## Build the masked image
+        masked_image = data_dict['gt_face_image'].clone().detach()
+        masked_image[:, :, :, masked_image.shape[3]//2:] = 0.
+
+        model_output_dict = self.face_2d_3d_xformer(fusion_embedding, masked_image)
 
         return model_output_dict
 
@@ -135,7 +139,7 @@ class Face2D3DFusion(pl.LightningModule):
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
-        loss_2d = F.l1_loss(pred_face_image, tgt_face_image)
+        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
 
         total_loss = loss_3d + loss_2d
         

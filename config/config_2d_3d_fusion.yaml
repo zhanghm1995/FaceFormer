@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_2d_3d_fusion_debug
+checkpoint_dir: work_dir/train_2d_3d_fusion
 
 test_mode: False
 
