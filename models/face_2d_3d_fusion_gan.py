@@ -18,12 +18,13 @@ import pytorch_lightning as pl
 import os.path as osp
 import os
 import numpy as np
-
+import torchaudio
 from .face_former_encoder import Wav2Vec2Encoder
 from .resnet_embedding import ResNetEmbedding
 from .face_2d_3d_xfomer import Face2D3DXFormer
 from utils.save_data import save_image_array_to_video, save_video
 from .discriminators.img_gen_disc import Feature2Face_D as PatchGANDiscriminator
+from utils.loss import GANLoss, VGGLoss, compute_feature_matching_loss
 
 
 class Face2D3DFusionGAN(pl.LightningModule):
@@ -53,6 +54,9 @@ class Face2D3DFusionGAN(pl.LightningModule):
 
         ## Define the Discriminator
         self.discriminator = PatchGANDiscriminator(self.config['PatchGANDiscriminator'])
+
+        self.criterionGAN = GANLoss()
+        self.criterionVGG = VGGLoss()
 
     def configure_optimizers(self):
         if self.config.optimizer.lower() == 'sgd':
@@ -113,9 +117,40 @@ class Face2D3DFusionGAN(pl.LightningModule):
             model_output = self(batch)
 
             ## 2) Calculate the loss
-            loss = self.compute_loss(batch, model_output)
+            loss_dict = self.compute_loss(batch, model_output)
+
+            total_loss = 0.0
+            for value in loss_dict.values():
+                total_loss += value
+
+            loss_3d = loss_dict['loss_s'] + loss_dict['lossg_e'] + loss_dict['lossg_em']
+
+            self.log('total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+            self.log('loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
+            self.log('lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=False)
+            self.log('lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
+            self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
+            self.log('loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
+
+            g = model_output['face_image']
+            gt = batch['gt_face_image']
+
+            ## Add GAN related loss
+            pred_real = self.discriminator(gt)
+            pred_fake = self.discriminator(g)
+            loss_G_GAN = self.criterionGAN(pred_fake, True)
+
+            loss_vgg = self.criterionVGG(g, gt) * self.config.lambda_feat # Perceptual loss
             
-            return loss
+            loss_FM = compute_feature_matching_loss(pred_fake, pred_real, self.config['PatchGANDiscriminator'])
+            
+            total_loss += loss_G_GAN + loss_vgg + loss_FM
+
+            self.log('loss_G_GAN', loss_G_GAN, on_step=True, on_epoch=True, prog_bar=False)
+            self.log('loss_vgg', loss_vgg, on_step=True, on_epoch=True, prog_bar=False)
+            self.log('loss_FM', loss_FM, on_step=True, on_epoch=True, prog_bar=False)
+
+            return total_loss
         
         if optimizer_idx == 1:
             ## ============= Train the Generator ============== ##
@@ -129,6 +164,8 @@ class Face2D3DFusionGAN(pl.LightningModule):
             loss_D_fake = self.criterionGAN(pred_fake, False)
             
             total_loss_D = (loss_D_real + loss_D_fake) * 0.5
+
+            self.log('total_loss_D', total_loss_D, on_step=True, on_epoch=True, prog_bar=False)
             return total_loss_D
     
     def validation_step(self, batch, batch_idx):
@@ -179,14 +216,9 @@ class Face2D3DFusionGAN(pl.LightningModule):
 
         total_loss = loss_3d + loss_2d
         
-        self.log('total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('loss_s', loss_s, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('lossg_e', lossg_e, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('lossg_em', lossg_em, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('loss_2d', loss_2d, on_step=True, on_epoch=True, prog_bar=True)
-
-        return total_loss
+        loss_dict = {'loss_s': loss_s, 'lossg_e': lossg_e, 'lossg_em': lossg_em,
+                     'loss_2d_l1': loss_2d}
+        return loss_dict
 
     def encode_audio(self, x: Tensor, lengths=None, sample_rate=16000):
         """_summary_
@@ -207,25 +239,6 @@ class Face2D3DFusionGAN(pl.LightningModule):
         enc_output = self.audio_encoder(x, lengths)
         return enc_output.permute(1, 0, 2)
 
-    
-
-    def forward_autoregressive(self, data_dict: Dict, shift_target_right=True):
-        ## 1) Audio encoder
-        audio_seq = data_dict['raw_audio'] # (B, L)
-        encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
-
-        ## 2) Encoding the target
-        seq_len, batch_size = encoded_x.shape[:2]
-        
-        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device) # in (B, Sy, C)
-
-        for seq_idx in range(1, seq_len):
-            y = output[:, :seq_idx]
-            dec_output = self.face_3d_param_model(y, encoded_x, 
-                                                  shift_target_right=False) # in (Sy, B, C)
-            output[:, seq_idx] = dec_output[-1:, ...]
-        return {'face_3d_params': output}
-
     def inference(self, data_dict):
         ## audio source encoder
         audio_seq = data_dict['raw_audio']
@@ -243,23 +256,4 @@ class Face2D3DFusionGAN(pl.LightningModule):
             output[:, seq_idx] = dec_output[-1:, ...]
         return {'face_3d_params': output}
 
-    def inference_new(self, data_dict): # TODO
-        ## audio source encoder
-        audio_seq = data_dict['raw_audio']
-        encoded_x = self.encode_audio(audio_seq, lengths=None)
-
-        seq_len, batch_size = encoded_x.shape[:2]
-        
-        output = torch.zeros((batch_size, 1, 64)).to(encoded_x.device)
-
-        for _ in range(seq_len):
-            dec_output = self.face_3d_param_model(output, encoded_x, 
-                                                  shift_target_right=False,
-                                                  need_tgt_mask=False) # in (Sy, B, C)
-            
-            dec_output = dec_output.permute(1, 0, 2)
-            output = torch.concat([output, dec_output[:, -1:, :]], dim=1)
-        
-        output = output[:, 1:, :]
-        return {'face_3d_params': dec_output}
 
