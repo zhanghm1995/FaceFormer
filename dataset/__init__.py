@@ -81,9 +81,11 @@ def get_2d_3d_dataset(config, split):
 
 
 def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
+    import librosa
+    import numpy as np
     from .face_2d_3d_dataset import Face2D3DDataset
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=200)
+    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=100)
     seq_list = list(range(len(dataset)))
     
     st = random.getstate()
@@ -94,10 +96,14 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
     if num_sequences > 0 and num_sequences < len(dataset):
         seq_list = seq_list[:num_sequences]
     
-    print("Selected indices: ", seq_list)
+    # whole_audio_data = torch.tensor(librosa.core.load("./data/audio_samples/sentence13_voca.wav", sr=16000)[0].astype(np.float32))
+    # print("Selected indices: ", seq_list, whole_audio_data.shape)
+
     sub_dataset = []
     for idx in seq_list:
-        sub_dataset.append(dataset[idx])
+        data_dict = dataset[idx]
+        # data_dict['raw_audio'] = whole_audio_data[:data_dict['raw_audio'].shape[0]]
+        sub_dataset.append(data_dict)
 
     data_loader = DataLoader(
         sub_dataset,
@@ -109,5 +115,3 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
         collate_fn=collate_fn
     )
     return data_loader
-
-    return data_list

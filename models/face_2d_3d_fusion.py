@@ -124,8 +124,6 @@ class Face2D3DFusion(pl.LightningModule):
                                   audio_array=batch['raw_audio'])
 
     def test_step(self, batch, batch_idx):
-        print(batch_idx, self.current_epoch, self.global_step)
-
         ## 1) Forward the network
         model_output = self(batch)
 

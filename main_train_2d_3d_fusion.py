@@ -40,7 +40,7 @@ else:
     test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")
 
-    model = model.load_from_checkpoint("work_dir/train_2d_3d_fusion/lightning_logs/version_0/checkpoints_test/epoch=31-step=27139.ckpt", 
+    model = model.load_from_checkpoint("work_dir/train_2d_3d_fusion/lightning_logs/version_0/checkpoints_test/epoch=121-step=103160.ckpt", 
                                        config=config)
     
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'], logger=None)
