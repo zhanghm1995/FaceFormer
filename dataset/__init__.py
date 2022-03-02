@@ -64,12 +64,13 @@ def get_2d_3d_dataset(config, split):
 
     dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
     
-    sub_dataset = []
-    for idx in range(8):
-        sub_dataset.append(dataset[idx])
+    ## minibatch for debuging
+    # sub_dataset = []
+    # for idx in range(8):
+    #     sub_dataset.append(dataset[idx])
 
     data_loader = DataLoader(
-        sub_dataset,
+        dataset,
         batch_size=config['batch_size'],
         shuffle=(split=="train"),
         num_workers=config['number_workers'],

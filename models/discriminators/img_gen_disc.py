@@ -110,11 +110,10 @@ class NLayerDiscriminator(nn.Module):
 class Feature2Face_D(nn.Module):
     def __init__(self, opt):
         super(Feature2Face_D, self).__init__()
-        # initialize
         self.opt = opt
 
-        ##################### define networks
-        self.netD = MultiscaleDiscriminator(3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)  ###PatchGAN判别器
+        ## Define PatchGAN network
+        self.netD = MultiscaleDiscriminator(3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)
        
     def forward(self, input: Tensor):
         """Forward this discriminator network

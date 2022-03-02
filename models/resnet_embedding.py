@@ -10,8 +10,7 @@ Description: ResetNet embedding network
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.nn import functional as F 
-from torchvision.models.resnet import resnet34
+from torchvision.models.resnet import resnet34, resnet18
 
 
 class ResNetEmbedding(nn.Module):
@@ -19,7 +18,7 @@ class ResNetEmbedding(nn.Module):
     def __init__(self, pretrained=True) -> None:
         super().__init__()
 
-        net = resnet34(pretrained)
+        net = resnet18(pretrained)
         
         self.conv1 = net.conv1
         self.bn1 = net.bn1
@@ -34,7 +33,7 @@ class ResNetEmbedding(nn.Module):
 
         self.out_fc = nn.Linear(512, 128)
     
-    def forward(self, x):
+    def forward(self, x: Tensor):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
