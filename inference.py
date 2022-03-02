@@ -17,8 +17,10 @@ from utils.post_process import merge_face_contour_only
 from tqdm import tqdm
 import librosa
 import subprocess
+import torch
 import tempfile
 from utils.face_detector import detect_face_from_one_image
+import torchvision.transforms as transforms
 
 
 def parse_config():
@@ -69,8 +71,11 @@ def get_frames_from_video(video_path, num_need_frames=-1):
     return frames
 
 
-def get_model(cfg):
-    pass
+def get_model(cfg_path):
+    config = OmegaConf.load(cfg_path)
+    from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN
+    model = Face2D3DFusionGAN(config).load_from_checkpoint(config.checkpoint, config=config)
+    return model
 
 def crop_face(input_image, face_coord, crop_squared=True):
     img_H, img_W = input_image.shape[:2]
@@ -123,7 +128,7 @@ def get_face_coords(input_image, resize_factor=1):
     return face_coord
 
 
-def detect_face(frames, resize_factor=4):
+def detect_face(frames, target_image_size=(192, 192), resize_factor=4):
     face_image, face_coords = [], []
 
     for i, frame in tqdm(enumerate(frames)):
@@ -136,7 +141,8 @@ def detect_face(frames, resize_factor=4):
 
         face, coords = crop_face(frame, face_coord, crop_squared=True)
 
-        face_image.append(cv2.resize(face, (224, 224)))
+        face = cv2.resize(face, target_image_size)
+        face_image.append(transforms.ToTensor()(face))
         face_coords.append(coords)
 
     return face_image, face_coords 
@@ -153,11 +159,24 @@ def read_audio(audio_path):
         subprocess.call(command, shell=True, stdout=subprocess.DEVNULL)
         real_audio_path = tmp_audio_file.name
 
-    audio_data =  librosa.core.load(real_audio_path, sr=16000)[0]
+    audio_data = librosa.core.load(real_audio_path, sr=16000)[0]
     return audio_data
 
 
+def create_input_data(face_image, audio, device, face_3d_params=None):
+    data_dict = {}
+    
+    data_dict['gt_face_image'] = torch.stack(face_image)[None].to(device) # (1, 100, 3, 192, 192)
+    data_dict['gt_face_3d_params'] = torch.zeros((1, 100, 64), dtype=torch.float32).to(device)
+    data_dict['raw_audio'] = torch.tensor(audio.astype(np.float32))[None].to(device)
+
+    return data_dict
+
+
 def main(cfg):
+    from utils.save_data import save_image_array_to_video
+    from scipy.io import wavfile
+
     ## 1) Load the audio
     driven_audio_data = read_audio(audio_path=cfg.driven_audio_path)
     
@@ -170,7 +189,47 @@ def main(cfg):
     face_image, face_coords = detect_face(all_frames)
     
     ## 4) Forward the network
+    device = torch.device("cuda")
 
+    input_data_dict = create_input_data(face_image, driven_audio_data, device)
+
+    
+    model = get_model(cfg.cfg).to(device).eval()
+    with torch.no_grad():
+        model_output = model.generator(input_data_dict)
+
+    ## 6) Combine with the background
+    pred_face_image = model_output['face_2d_image'][0].permute(0, 2, 3, 1).cpu().numpy() * 255
+
+    tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4')
+
+    i = -1
+    for p, f, c in zip(pred_face_image, all_frames, face_coords):
+        i += 1
+
+        x1, y1, x2, y2 = c
+
+        pred_image = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+        if i == 0:
+            img_shape = f.shape[:2][::-1]
+            writer = cv2.VideoWriter(tmp_video_file.name, 
+                                     cv2.VideoWriter_fourcc(*'mp4v'), 
+                                     25, img_shape, True)
+        
+        origin_f = f.copy()
+        f[y1:y2, x1:x2] = pred_image
+        # writer.write(f)
+
+        res = merge_face_contour_only(origin_f, f, (y1, y2, x1, x2))
+        writer.write(res)
+    
+    writer.release()
+
+    tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav')
+    wavfile.write(tmp_audio_file.name, 16000, driven_audio_data)
+
+    cmd = f'ffmpeg -y -i {tmp_audio_file.name} -i {tmp_video_file.name} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p ./work_dir/results/example.mp4'
+    subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":
