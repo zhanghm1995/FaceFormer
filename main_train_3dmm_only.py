@@ -2,33 +2,28 @@
 Copyright (c) 2022 by Haiming Zhang. All Rights Reserved.
 
 Author: Haiming Zhang
-Date: 2022-02-22 11:09:34
+Date: 2022-02-27 10:07:56
 Email: haimingzhang@link.cuhk.edu.cn
-Description: Train the Multi-Modal fusion transformer
+Description: Train the audio to 3DMM only transformer
 '''
 
 import os
 import os.path as osp
+from pickle import FALSE
 import torch
 import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
 from omegaconf import OmegaConf
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
-from models.mm_fusion_transformer import MMFusionFormer
+from models.mm_fusion_transformer import Face3DMMFormer
 from utils.model_serializer import ModelSerializer
 from utils.save_data import save_images
-
-def compute_visuals(data_dict, output):
-    ## we combine input, ref, output, gt together
-    input = data_dict['input_image'][:, :, :3, :, :]
-    ref = data_dict['input_image'][:, :, 3:, :, :]
-    gt = data_dict['gt_face_image']
-    output_vis = torch.concat([input, ref, output, gt], dim=-1)
-    return output_vis
+from utils.utils import get_loss_description_str
+from utils.loss import cosine_loss
 
 
-def compute_losses(data_input: dict, model_output: dict, criterion: dict, config=None) -> dict:
+def compute_losses(data_input: dict, model_output: dict, criterion: dict) -> dict:
     """Compute all losses
 
     Args:
@@ -42,17 +37,18 @@ def compute_losses(data_input: dict, model_output: dict, criterion: dict, config
     """
     total_loss = 0.0
 
-    face_2d_image_criterion = criterion['face_2d_image']
-    face_2d_image_loss = face_2d_image_criterion(model_output['face_image'], data_input['gt_face_image'])
-    total_loss += face_2d_image_loss
-
     face_3d_params_criterion = criterion['face_3d_params']
-    face_3d_params_loss = face_3d_params_criterion(model_output['face_3d_params'], data_input['face_3d_params'])
-
+    face_3d_params_loss = face_3d_params_criterion(
+        model_output['face_3d_params'], data_input['gt_face_3d_params'])
     total_loss += face_3d_params_loss
 
+    # face_3d_params_cosine_criterion = criterion['similarity_loss']
+    # face_3d_params_cosine_loss = face_3d_params_cosine_criterion(
+    #     model_output['face_3d_params'], data_input['gt_face_3d_params']) * 2.0
+    # total_loss += face_3d_params_cosine_loss
+
+
     return {'total_loss': total_loss,
-            'face_2d_image_loss': face_2d_image_loss,
             'face_3d_params_loss': face_3d_params_loss}
 
 
@@ -65,18 +61,20 @@ class Trainer:
         ## 1) Define the dataloader
         self.train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
         print(f"The training dataloader length is {len(self.train_dataloader)}")
+
         self.val_dataloader = get_2d_3d_dataset(config['dataset'], split='val')
         print(f"The validation dataloader length is {len(self.val_dataloader)}")
         
         ## 2) Define the model and optimizer
-        self.model = MMFusionFormer(config, self.device).to(self.device)
+        self.model = Face3DMMFormer(config, self.device).to(self.device)
         
-        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], lr=1e-4)
+        self.optimizer = optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
+                                    lr=1e-4)
 
         ## 3) Define the loss
         self.criterion = dict()
-        self.criterion['face_2d_image'] = nn.L1Loss().to(self.device)
-        self.criterion['face_3d_params'] = nn.MSELoss().to(self.device)
+        self.criterion['face_3d_params'] = nn.SmoothL1Loss(reduction="sum").to(self.device)
+        self.criterion['similarity_loss'] = cosine_loss
         
         ## 4) Logging
         self.model_serializer = ModelSerializer(
@@ -107,10 +105,10 @@ class Trainer:
             prog_bar = tqdm(self.train_dataloader)
             for batch_data in prog_bar:
                 train_loss = self._train_step(batch_data)
+
+                loss_description_str = get_loss_description_str(train_loss)
                 description_str = (f"Training: Epoch: {epoch} | Iter: {global_step} | "
-                                   f"total loss: {train_loss['total_loss']:.4f} "
-                                   f"face 2d image loss: {train_loss['face_2d_image_loss']:.4f} "
-                                   f"face 3d params loss: {train_loss['face_3d_params_loss']:.4f}")
+                                   + loss_description_str)
                 prog_bar.set_description(description_str)
                 
                 ## Logging by tensorboard
@@ -121,7 +119,7 @@ class Trainer:
             ## Start Validation
             if epoch % 4 == 0:
                 print("================= Start validation ==================")
-                avg_val_loss = self._val_step(epoch, global_step)
+                avg_val_loss = self._val_step(epoch, global_step, autoregressive=True)
                  ## Logging by tensorboard
                 self.tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
 
@@ -143,22 +141,11 @@ class Trainer:
                     self.model_serializer.save(checkpoint, is_best=False)
                     print(f"Saving latest checkpoint in epoch {epoch}")
                     
-            
-            ## Visualization
-            if epoch % 4 == 0:
-                for idx, data in enumerate(vis_val_data):
-                    data_dict = {}
-                    for key, value in data.items():
-                        data_dict[key] = value[None]
-
-                    output = self._test_step(data_dict)
-                    
-                    output_vis = compute_visuals(data_dict, output['face_image'])
-                    save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                    
         print("Training Done")    
 
     def test(self):
+        import numpy as np
+        from scipy.io import wavfile
         print("================ Start testing ======================")
         ## 1) Restore the network
         start_epoch, global_step = 1, 1
@@ -166,7 +153,7 @@ class Trainer:
             self.model_serializer.restore(self.model, self.optimizer, load_latest=True)
         
         # Get fixed batch data for visualization
-        vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='val', num_sequences=2)
+        vis_val_data = get_random_fixed_2d_3d_dataset(self.config['dataset'], split='train', num_sequences=2)
 
         ## 2) ========= Start training ======================
         epoch = start_epoch
@@ -176,12 +163,19 @@ class Trainer:
             for key, value in data.items():
                 data_dict[key] = value[None]
 
-            output = self._test_step(data_dict)
+            output = self._test_step(data_dict, autoregressive=True)
             
-            output_vis = compute_visuals(data_dict, output['face_image'])
-            save_images(output_vis, osp.join(self.config['checkpoint_dir'], "vis"), epoch, name=f"{idx:03d}")
-                    
-        print("Training Done")
+            ## Save the 3DMM parameters to npz file
+            face_params = output['face_3d_params'][0].cpu().numpy()
+            save_dir = osp.join(self.config['checkpoint_dir'], "vis", f"epoch_{epoch:03d}")
+            os.makedirs(save_dir, exist_ok=True)
+            np.savez(osp.join(save_dir, f"{idx:03d}.npz"), face=face_params)
+
+            ## Save audio
+            audio_data = data_dict['raw_audio'][0].cpu().numpy()
+            wavfile.write(osp.join(save_dir, f"{idx:03d}.wav"), 16000, audio_data)
+
+        print("Testing Done")
 
     def _test_step(self, data_dict, autoregressive=False):
         self.model.eval()
@@ -189,34 +183,34 @@ class Trainer:
         with torch.no_grad():
             ## Move to GPU
             for key, value in data_dict.items():
-                data_dict[key] = value.to(self.device)
-            
-            ## Build the input
-            masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-            masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-            data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2) # (B, T, 6, H, W)
+                if key in ['raw_audio', 'gt_face_3d_params']:
+                    data_dict[key] = value.to(self.device)
 
             ## Forward the network
             if autoregressive:
-                model_output = self.model.inference(data_dict)
+                model_output = self.model.inference_new(data_dict)
             else:
                 model_output = self.model(data_dict) # (B, T, 3, H, W)
 
         return model_output    
 
     def _train_step(self, data_dict):
+        """Call this function in every iteration in training mode
+
+        Args:
+            data_dict (dict): dictionary contains training needed data
+
+        Returns:
+            dict: losses dictionary
+        """
         self.model.train()
 
         self.optimizer.zero_grad()
 
         ## Move to GPU
         for key, value in data_dict.items():
-            data_dict[key] = value.to(self.device)
-
-        ## Build the input
-        masked_gt_image = data_dict['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-        masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-        data_dict['input_image'] = torch.concat([masked_gt_image, data_dict['ref_face_image']], dim=2)
+            if key in ['raw_audio', 'gt_face_3d_params']:
+                data_dict[key] = value.to(self.device)
 
         ## Forward the network
         model_output = self.model(data_dict)
@@ -242,13 +236,9 @@ class Trainer:
             for batch_data in prog_bar:
                 ## Move to GPU
                 for key, value in batch_data.items():
-                    batch_data[key] = value.to(self.device)
+                    if key in ['raw_audio', 'gt_face_3d_params']:
+                        batch_data[key] = value.to(self.device)
                 
-                ## Build the input
-                masked_gt_image = batch_data['gt_face_image'].clone().detach() # (B, T, 3, H, W)
-                masked_gt_image[:, :, :, masked_gt_image.shape[3]//2:] = 0.
-                batch_data['input_image'] = torch.concat([masked_gt_image, batch_data['ref_face_image']], dim=2) # (B, T, 6, H, W)
-
                 ## Forward the network
                 if autoregressive:
                     model_output = self.model.inference(batch_data)
@@ -268,11 +258,15 @@ class Trainer:
 
 def main():
     #========= Loading Config =========#
-    config = OmegaConf.load('./config/config_2d_3d.yaml')
+    config = OmegaConf.load('./config/config_3dmm.yaml')
     
     #========= Create Model ============#
     model = Trainer(config)
-    model.train()
+
+    if not config.test_mode:
+        model.train()
+    else:
+        model.test()
 
 
 if __name__ == "__main__":

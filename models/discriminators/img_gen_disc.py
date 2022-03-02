@@ -8,11 +8,11 @@ Description: Image generation commonly used discriminators
 '''
 
 import torch
+from torch import Tensor
 import torch.nn as nn
 import numpy as np
 
 class MultiscaleDiscriminator(nn.Module):
-    #MultiscaleDiscriminator(23 + 3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, num_D=3, getIntermFeat=True):
         super(MultiscaleDiscriminator, self).__init__()
         self.num_D = num_D
@@ -107,31 +107,25 @@ class NLayerDiscriminator(nn.Module):
             return self.model(input)      
 
 
-from torch.cuda.amp import autocast as autocast
-
 class Feature2Face_D(nn.Module):
     def __init__(self, opt):
         super(Feature2Face_D, self).__init__()
-        # initialize
         self.opt = opt
 
-        self.Tensor = torch.cuda.FloatTensor
-
-        self.output_nc = opt.output_nc        
-
-        ##################### define networks
-        self.netD = MultiscaleDiscriminator(3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)  ###PatchGAN判别器
-                    
-        print('---------- Discriminator networks initialized -------------') 
+        ## Define PatchGAN network
+        self.netD = MultiscaleDiscriminator(3, opt.ndf, opt.n_layers_D, opt.num_D, not opt.no_ganFeat)
        
-    #@autocast()    
-    def forward(self, input):
-        if self.opt.fp16:   #####默认情况下没有用这个
-            with autocast():
-                pred = self.netD(input)
-        else:
-            input = torch.cat([input[:, :, i] for i in range(input.size(2))], dim=0)         #####
-            #注：生成器的输出是  torch.Size([6, 3, 5, 192, 192])   6是批大小
-            #生成的图片是6个窗口，每个窗口5张图片，所以 把它变成30张图片,即 30，3 ，192，192，再输入到判别器当中
-            pred = self.netD(input)
+    def forward(self, input: Tensor):
+        """Forward this discriminator network
+
+        Args:
+            input (Tensor): (B, T, C, H, W)
+
+        Returns:
+            _type_: _description_
+        """
+        B, T, C, H, W = input.shape
+        input = input.reshape((-1, C, H, W)) # to (B*T, C, H, W)
+
+        pred = self.netD(input)
         return pred

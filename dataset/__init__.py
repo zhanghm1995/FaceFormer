@@ -10,7 +10,13 @@ Description:
 import random
 from .voca_dataset import DataHandler
 from .voca_dataset_batcher import Batcher
+from torch.utils.data import DataLoader
 
+import torch
+
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)
 
 def get_dataset(config):
     data_handler = DataHandler(config)
@@ -55,9 +61,14 @@ def get_random_fixed_2d_dataset(config, split, num_sequences):
 
 def get_2d_3d_dataset(config, split):
     from .face_2d_3d_dataset import Face2D3DDataset
-    from torch.utils.data import DataLoader
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
+    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=75)
+    
+    ## minibatch for debuging
+    # sub_dataset = []
+    # for idx in range(8):
+    #     sub_dataset.append(dataset[idx])
+
     data_loader = DataLoader(
         dataset,
         batch_size=config['batch_size'],
@@ -65,25 +76,43 @@ def get_2d_3d_dataset(config, split):
         num_workers=config['number_workers'],
         # pin_memory=True,
         pin_memory=False,
+        collate_fn=collate_fn
     )
     return data_loader
 
 
 def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
+    import librosa
+    import numpy as np
     from .face_2d_3d_dataset import Face2D3DDataset
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split)
+    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=100)
     seq_list = list(range(len(dataset)))
     
     st = random.getstate()
-    random.seed(777)
+    random.seed(111)
     random.shuffle(seq_list)
     random.setstate(st)
 
     if num_sequences > 0 and num_sequences < len(dataset):
         seq_list = seq_list[:num_sequences]
     
-    data_list = []
+    # whole_audio_data = torch.tensor(librosa.core.load("./data/audio_samples/sentence13_voca.wav", sr=16000)[0].astype(np.float32))
+    # print("Selected indices: ", seq_list, whole_audio_data.shape)
+
+    sub_dataset = []
     for idx in seq_list:
-        data_list.append(dataset[idx])
-    return data_list
+        data_dict = dataset[idx]
+        # data_dict['raw_audio'] = whole_audio_data[:data_dict['raw_audio'].shape[0]]
+        sub_dataset.append(data_dict)
+
+    data_loader = DataLoader(
+        sub_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+        collate_fn=collate_fn
+    )
+    return data_loader

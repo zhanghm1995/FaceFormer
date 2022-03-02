@@ -1,4 +1,6 @@
-checkpoint_dir: work_dir/train_2d_3d_layer_norm
+checkpoint_dir: work_dir/train_3dmm_with_style_embedding
+
+test_mode: True
 
 learning_rate: 1e-4
 decay_rate: 1.0
@@ -9,7 +11,7 @@ num_render_sequences: 3
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 4
+  batch_size: 8
   number_workers: 4
 
 
@@ -26,7 +28,7 @@ face_3dmm_former:
   d_model: 128
   n_head: 4
   n_layer: 1
-  d_feed_forward: 1024
+  d_feed_forward: 256
 
 log:
   checkpoint_dir: training_exp

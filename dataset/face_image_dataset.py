@@ -41,10 +41,11 @@ class FaceImageDataset(Dataset):
 
         self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
 
-        self.fetch_length = kwargs.get("fetch_length", 100)
+        self.fetch_length = kwargs.get("fetch_length", 75)
+        self.fetch_stride = kwargs.get("fetch_stride", 25)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
-        self.target_image_size = (96, 96)
+        self.target_image_size = (192, 192)
 
         self.build_dataset()
 
@@ -63,7 +64,7 @@ class FaceImageDataset(Dataset):
             num_frames = len(all_images_path)
             self.total_frames_list.append(num_frames)
 
-            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, stride=25)
+            valid_indices = get_all_valid_indices(num_frames, self.fetch_length, stride=self.fetch_stride)
             self.all_sliced_indices.append(valid_indices)
 
             total_length += len(valid_indices)
@@ -77,7 +78,7 @@ class FaceImageDataset(Dataset):
         
         Returns:
             main_idx (int): index specifying which video
-            sub_idx (int): index specifying what the start index in this video
+            sub_idx (int): index specifying what the start index in this sliced video
         """
         def fetch_data(length_list, index):
             assert index < length_list[-1]
@@ -94,24 +95,30 @@ class FaceImageDataset(Dataset):
     def __len__(self):
         return sum([len(x) for x in self.all_sliced_indices])
     
-    def _slice_raw_audio(self, choose_video, sub_idx):
+    def _slice_raw_audio(self, choose_video, start_index):
         """Slice the raw whole audio into a vector with fetch length
 
         Args:
             choose_video (str): choosed video directory path
-            sub_idx (int): choosed the video start index
+            start_index (int): choosed the video start index
 
         Returns:
             np.ndarray: (M, )
         """
         audio_path = osp.join(self.data_root, choose_video, f"{osp.basename(choose_video)}.wav")
         
-        start_idx, end_idx = sub_idx, sub_idx + self.fetch_length
+        start_idx, end_idx = start_index, start_index + self.fetch_length
         audio_start_idx = round(start_idx / self.video_fps * self.audio_sample_rate)
         audio_end_idx = round(end_idx / self.video_fps * self.audio_sample_rate)
+
+        audio_idx_diff = audio_end_idx - audio_start_idx
         
         whole_audio_data = librosa.core.load(audio_path, sr=self.audio_sample_rate)[0]
         fetch_audio_data = whole_audio_data[audio_start_idx:audio_end_idx]
+
+        if len(fetch_audio_data) != audio_idx_diff:
+            return None
+        
         return fetch_audio_data
 
     def _get_reference_image(self, video_length, video_dir, choose_idx):
@@ -128,9 +135,7 @@ class FaceImageDataset(Dataset):
         ### randomly choose one start index
         ref_start_idx = random.sample(valid_indices, k=1)[0]
         
-        ## Read the reference images
-        img_seq_tensor = self._read_image_sequence(video_dir, ref_start_idx)
-        return img_seq_tensor
+        return ref_start_idx
 
     def _read_image_sequence(self, video_dir, start_idx):
         img_list = []
@@ -151,12 +156,14 @@ class FaceImageDataset(Dataset):
         start_idx = self.all_sliced_indices[main_idx][sub_idx]
 
         audio_seq = self._slice_raw_audio(choose_video, sub_idx)
+        if audio_seq is None:
+            return None
 
         ## Get the GT image
         gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
 
         ## Get the reference image
-        ref_img_seq_tensor = self._get_reference_image(
+        ref_img_seq_tensor, _ = self._get_reference_image(
             self.total_frames_list[main_idx], choose_video, start_idx)
         
         data_dict = {}
