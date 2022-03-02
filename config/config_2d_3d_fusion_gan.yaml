@@ -20,7 +20,7 @@ num_render_sequences: 3
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 2
+  batch_size: 1
   number_workers: 4
 
 lambda_feat: 10.0

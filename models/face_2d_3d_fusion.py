@@ -18,7 +18,6 @@ import pytorch_lightning as pl
 import os.path as osp
 import os
 import numpy as np
-
 from .face_former_encoder import Wav2Vec2Encoder
 from .resnet_embedding import ResNetEmbedding
 from .face_2d_3d_xfomer import Face2D3DXFormer
@@ -172,6 +171,7 @@ class Face2D3DFusion(pl.LightningModule):
             Tensor: (Sx, B, E)
         """
         if sample_rate != 16000:
+            import torchaudio
             ## resample the audio sample rate
             x = torchaudio.functional.resample(x, 22000, 16000)
             if lengths is not None:
@@ -180,60 +180,3 @@ class Face2D3DFusion(pl.LightningModule):
         
         enc_output = self.audio_encoder(x, lengths)
         return enc_output.permute(1, 0, 2)
-
-    
-
-    def forward_autoregressive(self, data_dict: Dict, shift_target_right=True):
-        ## 1) Audio encoder
-        audio_seq = data_dict['raw_audio'] # (B, L)
-        encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
-
-        ## 2) Encoding the target
-        seq_len, batch_size = encoded_x.shape[:2]
-        
-        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device) # in (B, Sy, C)
-
-        for seq_idx in range(1, seq_len):
-            y = output[:, :seq_idx]
-            dec_output = self.face_3d_param_model(y, encoded_x, 
-                                                  shift_target_right=False) # in (Sy, B, C)
-            output[:, seq_idx] = dec_output[-1:, ...]
-        return {'face_3d_params': output}
-
-    def inference(self, data_dict):
-        ## audio source encoder
-        audio_seq = data_dict['raw_audio']
-        encoded_x = self.encode_audio(audio_seq, lengths=None)
-
-        seq_len, batch_size = encoded_x.shape[:2]
-        
-        output = torch.zeros((batch_size, seq_len, 64)).to(encoded_x.device)
-
-        for seq_idx in range(1, seq_len):
-            y = output[:, :seq_idx]
-            dec_output = self.face_3d_param_model(y, encoded_x, 
-                                                 shift_target_right=False,
-                                                 need_tgt_mask=False) # in (Sy, B, C)
-            output[:, seq_idx] = dec_output[-1:, ...]
-        return {'face_3d_params': output}
-
-    def inference_new(self, data_dict): # TODO
-        ## audio source encoder
-        audio_seq = data_dict['raw_audio']
-        encoded_x = self.encode_audio(audio_seq, lengths=None)
-
-        seq_len, batch_size = encoded_x.shape[:2]
-        
-        output = torch.zeros((batch_size, 1, 64)).to(encoded_x.device)
-
-        for _ in range(seq_len):
-            dec_output = self.face_3d_param_model(output, encoded_x, 
-                                                  shift_target_right=False,
-                                                  need_tgt_mask=False) # in (Sy, B, C)
-            
-            dec_output = dec_output.permute(1, 0, 2)
-            output = torch.concat([output, dec_output[:, -1:, :]], dim=1)
-        
-        output = output[:, 1:, :]
-        return {'face_3d_params': dec_output}
-

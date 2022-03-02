@@ -66,9 +66,17 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label_var
         return target_tensor
 
-    def forward(self, input: Tensor, target):
-        target_tensor = self.get_target_tensor(input[-1], target)
-        return self.loss(input[-1], target_tensor)
+    def forward(self, input: Tensor, target_is_real):
+        if isinstance(input[0], list):
+            loss = 0
+            for input_i in input:
+                pred = input_i[-1]
+                target_tensor = self.get_target_tensor(pred, target_is_real)                
+                loss += self.loss(pred, target_tensor)
+            return loss
+        else:            
+            target_tensor = self.get_target_tensor(input[-1], target_is_real)
+            return self.loss(input[-1], target_tensor)
 
 
 def compute_feature_matching_loss(pred_fake, pred_real, opt):
@@ -77,8 +85,8 @@ def compute_feature_matching_loss(pred_fake, pred_real, opt):
     
     loss_G_GAN_Feat = 0.0
 
-    for i in range(opt.num_D):
-        for j in range(len(pred_fake[i])-1):
+    for i in range(min(len(pred_fake), opt.num_D)):
+        for j in range(len(pred_fake[i])):
             loss_G_GAN_Feat += D_weights * feat_weights * \
                 F.l1_loss(pred_fake[i][j], pred_real[i][j].detach()) * opt.lambda_feat
     return loss_G_GAN_Feat
@@ -148,7 +156,11 @@ class VGGLoss(nn.Module):
         self.criterion = nn.L1Loss()
         self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]        
 
-    def forward(self, x, y):              
+    def forward(self, x, y):
+        B, T, C, H, W = x.shape
+        x = x.reshape((-1, C, H, W)) # to (B*T, C, H, W)
+        y = y.reshape((-1, C, H, W))
+
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         for i in range(len(x_vgg)):
