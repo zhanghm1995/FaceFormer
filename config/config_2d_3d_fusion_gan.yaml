@@ -1,6 +1,9 @@
 checkpoint_dir: work_dir/train_2d_3d_fusion_disc
 test_mode: False
 
+pretrained_gan_checkpoint: checkpoint_dir
+checkpoint: null
+
 ## Trainer parameters
 check_val_every_n_epoch: 4
 max_epochs: 200

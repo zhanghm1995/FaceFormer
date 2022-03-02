@@ -13,11 +13,15 @@ import pytorch_lightning as pl
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
 from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN
 from omegaconf import OmegaConf
-
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 config = OmegaConf.load('./config/config_2d_3d_fusion_gan.yaml')
 
-model = Face2D3DFusionGAN(config)
+## Create model
+if config.checkpoint is None:
+    model = Face2D3DFusionGAN(config)
+else:
+    model = Face2D3DFusionGAN(config).load_from_checkpoint(config.checkpoint, config=config)
 
 if not config['test_mode']:
     print(f"{'='*25} Start Traning, Good Luck! {'='*25}")
@@ -29,6 +33,9 @@ if not config['test_mode']:
 
     val_dataloader = get_2d_3d_dataset(config['dataset'], split='val')
     print(f"The validation dataloader length is {len(val_dataloader)}")
+
+    # checkpoint_callback = ModelCheckpoint(monitor='precision/test', mode='max', save_last=True,
+    #                                       save_top_k=cfg.save_top_k)
 
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
                          max_epochs=config.max_epochs,
