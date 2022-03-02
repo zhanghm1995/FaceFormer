@@ -1,16 +1,16 @@
-checkpoint_dir: work_dir/train_2d_3d_fusion_disc
+checkpoint_dir: work_dir/train_2d_3d_fusion_gan
 test_mode: False
 
-pretrained_gan_checkpoint: checkpoint_dir
+pretrained_gan_checkpoint: work_dir/train_2d_3d_fusion_resnet18/pretrained_checkpoint/epoch=47-step=41183.ckpt
 checkpoint: null
 
 ## Trainer parameters
 check_val_every_n_epoch: 4
 max_epochs: 200
 
-lr: 0.0001
+lr: 0.00001
 optimizer: Adam
-lr_decay_step: 12
+lr_decay_step: 4
 lr_decay_rate: 0.2
 wd: 0
 
@@ -23,7 +23,7 @@ num_render_sequences: 3
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 1
+  batch_size: 2
   number_workers: 4
 
 lambda_feat: 10.0

@@ -43,7 +43,7 @@ class Face2D3DFusionGAN(pl.LightningModule):
         
         if config.pretrained_gan_checkpoint is not None:
             print("Load pretrained GAN generator...")
-            self.generator.load_from_checkpoint(config.pretrained_gan_checkpoint, config=config)
+            self.generator = self.generator.load_from_checkpoint(config.pretrained_gan_checkpoint, config=config)
 
         ## Define the Discriminator
         self.discriminator = PatchGANDiscriminator(self.config['PatchGANDiscriminator'])
