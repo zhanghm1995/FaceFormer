@@ -7,6 +7,7 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: Face 2D-3D Cross-Modal transformer
 '''
 
+import torch
 from torch import Tensor
 import torch.nn as nn
 from torch.nn import TransformerEncoder, LayerNorm, TransformerEncoderLayer
@@ -63,7 +64,19 @@ class Face2D3DXFormer(nn.Module):
             _type_: _description_
         """
         if self.config['use_3d']:
-            x = self.encoder(x, mask=None, src_key_padding_mask=None) # (2S, B, E)
+            attention_mask = None
+
+            if self.config.use_3d_mask:
+                fusion_seq_len = x.shape[0]
+
+                seq_len = int(fusion_seq_len // 2)
+                ## add the mask matrix like SAT to mask the 3D information
+                attention_mask = torch.zeros((fusion_seq_len, fusion_seq_len)).to(x)
+
+                attention_mask[-seq_len:, :seq_len] = 1.0
+                attention_mask = attention_mask * -10000.0
+
+            x = self.encoder(x, mask=attention_mask, src_key_padding_mask=None) # (2S, B, E)
 
             seq_len = int(x.shape[0] // 2)
             face_3d_embedding = x[:seq_len, ...].permute(1, 2, 0) # to (B, E, S)

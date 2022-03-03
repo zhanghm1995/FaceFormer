@@ -41,7 +41,9 @@ Face2D3DXFormer:
   nhead: 4
   n_layer: 2
   d_feed_forward: 256
+
   use_3d: ${use_3d}
+  use_3d_mask: True # whether to use 3D mask like SAT
 
 mm_fusion_decoder:
   d_model: ${d_model}

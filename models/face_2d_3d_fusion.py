@@ -83,7 +83,7 @@ class Face2D3DFusion(pl.LightningModule):
         audio_face_image_embedding = torch.cat([encoded_x, image_template_embedding], dim=-1) # to (S, B, 256)
         audio_face_image_embedding = self.face_2d_layer_norm(self.fc_2d(audio_face_image_embedding))
 
-        ## 2) Combine the 3D and audio features
+        ## 4) Combine the 3D and audio features
         if self.config.use_3d:
             face_3d_params = data_dict['gt_face_3d_params'] ## target sequence
             fac3_3d_template = face_3d_params[:, :1, :] # Only use the first frame (B, 1, 64)
