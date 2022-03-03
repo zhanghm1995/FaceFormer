@@ -15,9 +15,14 @@ from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
 
 
-config = OmegaConf.load('./config/config_2d_3d_fusion_2d_only.yaml')
+config = OmegaConf.load('./config/config_2d_3d_fusion_mmt.yaml')
 
-model = Face2D3DFusion(config)
+## Create model
+if config.checkpoint is None:
+    model = Face2D3DFusion(config)
+else:
+    print(f"Load pretrained model from {config.checkpoint}")
+    model = Face2D3DFusion(config).load_from_checkpoint(config.checkpoint, config=config)
 
 if not config['test_mode']:
     print(f"{'='*25} Start Traning, Good Luck! {'='*25}")
