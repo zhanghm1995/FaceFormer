@@ -15,7 +15,7 @@ from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
 
 
-config = OmegaConf.load('./config/config_2d_3d_fusion.yaml')
+config = OmegaConf.load('./config/config_2d_3d_fusion_2d_only.yaml')
 
 model = Face2D3DFusion(config)
 

@@ -15,7 +15,7 @@ from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-config = OmegaConf.load('./config/config_2d_3d_fusion_gan.yaml')
+config = OmegaConf.load('./config/config_2d_3d_fusion_2d_only.yaml')
 
 ## Create model
 if config.checkpoint is None:

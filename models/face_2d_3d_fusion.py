@@ -143,31 +143,36 @@ class Face2D3DFusion(pl.LightningModule):
                                   audio_array=batch['raw_audio'])
 
     def compute_loss(self, data_dict, model_output):
-        ## 3D loss
-        pred_params = model_output['face_3d_params']
-        tgt_params = data_dict['gt_face_3d_params']
+        total_loss = 0.0
 
-        motionlogits = pred_params[:, 1:, :] - pred_params[:, :-1, :]
-        tgt_motion = tgt_params[:, 1:, :] - tgt_params[:, :-1, :]
+        if self.config.use_3d:
+            ## 3D loss
+            pred_params = model_output['face_3d_params']
+            tgt_params = data_dict['gt_face_3d_params']
 
-        loss_s = 10 * (F.smooth_l1_loss(pred_params[:, :1, :], tgt_params[:, :1, :]))
-        lossg_e = 20 * F.smooth_l1_loss(pred_params[:, :, :], tgt_params[:, :, :])
-        lossg_em = 200 * F.smooth_l1_loss(motionlogits[:,:,:], tgt_motion[:,:,:])
+            motionlogits = pred_params[:, 1:, :] - pred_params[:, :-1, :]
+            tgt_motion = tgt_params[:, 1:, :] - tgt_params[:, :-1, :]
 
-        loss_3d = loss_s + lossg_e + lossg_em
+            loss_s = 10 * (F.smooth_l1_loss(pred_params[:, :1, :], tgt_params[:, :1, :]))
+            lossg_e = 20 * F.smooth_l1_loss(pred_params[:, :, :], tgt_params[:, :, :])
+            lossg_em = 200 * F.smooth_l1_loss(motionlogits[:,:,:], tgt_motion[:,:,:])
 
+            loss_3d = loss_s + lossg_e + lossg_em
+
+            total_loss += loss_3d
+            self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
+            self.log('loss_s', loss_s, on_step=True, on_epoch=True, prog_bar=False)
+            self.log('lossg_e', lossg_e, on_step=True, on_epoch=True, prog_bar=False)
+            self.log('lossg_em', lossg_em, on_step=True, on_epoch=True, prog_bar=False)
+        
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
         loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
 
-        total_loss = loss_3d + loss_2d
+        total_loss += loss_2d
         
         self.log('total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('loss_s', loss_s, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('lossg_e', lossg_e, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('lossg_em', lossg_em, on_step=True, on_epoch=True, prog_bar=False)
-        self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
         self.log('loss_2d', loss_2d, on_step=True, on_epoch=True, prog_bar=True)
 
         return total_loss

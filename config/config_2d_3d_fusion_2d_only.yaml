@@ -2,7 +2,7 @@ checkpoint_dir: work_dir/train_2d_3d_fusion_2d_only
 test_mode: False
 
 pretrained_gan_checkpoint: null
-checkpoint: /data/zhanghm/Models/FaceFormer/face_2d_3d_fusion/epoch=3-step=3431.ckpt
+checkpoint: null
 
 ## Trainer parameters
 check_val_every_n_epoch: 4
@@ -37,21 +37,21 @@ PatchGANDiscriminator:
 d_model: 128
 
 Face2D3DXFormer:
-  d_model: 128
+  d_model: ${d_model}
   nhead: 4
   n_layer: 2
   d_feed_forward: 256
   use_3d: ${use_3d}
 
 mm_fusion_decoder:
-  d_model: 128
+  d_model: ${d_model}
   n_head: 4
   n_layer: 2
   d_feed_forward: 1024
 
 face_3dmm_former:
   d_input_3d_params: 64
-  d_model: 128
+  d_model: ${d_model}
   n_head: 4
   n_layer: 1
   d_feed_forward: 256
