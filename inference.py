@@ -167,8 +167,11 @@ def create_input_data(face_image, audio, device, face_3d_params=None):
     data_dict = {}
     
     data_dict['gt_face_image'] = torch.stack(face_image)[None].to(device) # (1, 100, 3, 192, 192)
-    data_dict['gt_face_3d_params'] = torch.zeros((1, 100, 64), dtype=torch.float32).to(device)
     data_dict['raw_audio'] = torch.tensor(audio.astype(np.float32))[None].to(device)
+    if face_3d_params is not None:
+        data_dict['gt_face_3d_params'] = torch.from_numpy(face_3d_params.astype(np.float32))[None].to(device) * 1.5
+    else:
+        data_dict['gt_face_3d_params'] = torch.zeros((1, 100, 64), dtype=torch.float32).to(device)
 
     return data_dict
 
@@ -191,7 +194,10 @@ def main(cfg):
     ## 4) Forward the network
     device = torch.device("cuda")
 
-    input_data_dict = create_input_data(face_image, driven_audio_data, device)
+    npz_file = "./data/id00002/obama_weekly_003/deep3dface.npz"
+    face_3d_params = np.load(open(npz_file, 'rb'))
+    input_data_dict = create_input_data(
+        face_image, driven_audio_data, device, face_3d_params=face_3d_params['face'])
 
     
     model = get_model(cfg.cfg).to(device).eval()
