@@ -59,6 +59,14 @@ class Face2D3DFusion(pl.LightningModule):
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
     def forward(self, data_dict: Dict):
+        """Forward the network
+
+        Args:
+            data_dict (Dict): optional keys: raw_audio, gt_face_image, gt_face_3d_params
+
+        Returns:
+            _type_: _description_
+        """
         ## 1) Audio encoder
         audio_seq = data_dict['raw_audio'] # (B, L)
         encoded_x = self.encode_audio(audio_seq, lengths=None) # (Sx, B, E)
@@ -69,22 +77,25 @@ class Face2D3DFusion(pl.LightningModule):
         
         image_template_embedding = self.resnet_encoder(image_template) # (B, 128)
 
-        ## 2) Combine the 3D and audio features
-        face_3d_params = data_dict['gt_face_3d_params'] ## target sequence
-        fac3_3d_template = face_3d_params[:, :1, :] # Only use the first frame (B, 1, 64)
-        fac3_3d_template = fac3_3d_template.permute(1, 0, 2).repeat(encoded_x.shape[0], 1, 1) # (S, B, 64)
-
-        audio_face_3d_embedding = torch.cat([encoded_x, fac3_3d_template], dim=-1) # (S, B, C)
-        audio_face_3d_embedding = self.fc_3d(audio_face_3d_embedding)
-        audio_face_3d_embedding = self.face_3d_layer_norm(audio_face_3d_embedding)
-
-        ## 3) Combine the 2D image and audio features
+        ## 3) Combine the 2D template image and audio features
         # to (S, B, 128)
         image_template_embedding = image_template_embedding[:, None, :].repeat(1, encoded_x.shape[0], 1).permute(1, 0, 2)
         audio_face_image_embedding = torch.cat([encoded_x, image_template_embedding], dim=-1) # to (S, B, 256)
         audio_face_image_embedding = self.face_2d_layer_norm(self.fc_2d(audio_face_image_embedding))
 
-        fusion_embedding = torch.concat([audio_face_3d_embedding, audio_face_image_embedding], dim=0) # (2S, B, E)
+        ## 2) Combine the 3D and audio features
+        if self.config.use_3d:
+            face_3d_params = data_dict['gt_face_3d_params'] ## target sequence
+            fac3_3d_template = face_3d_params[:, :1, :] # Only use the first frame (B, 1, 64)
+            fac3_3d_template = fac3_3d_template.permute(1, 0, 2).repeat(encoded_x.shape[0], 1, 1) # (S, B, 64)
+
+            audio_face_3d_embedding = torch.cat([encoded_x, fac3_3d_template], dim=-1) # (S, B, C)
+            audio_face_3d_embedding = self.fc_3d(audio_face_3d_embedding)
+            audio_face_3d_embedding = self.face_3d_layer_norm(audio_face_3d_embedding)
+
+            fusion_embedding = torch.concat([audio_face_3d_embedding, audio_face_image_embedding], dim=0) # (2S, B, E)
+        else:
+            fusion_embedding = audio_face_image_embedding
 
         ## 4) Decoder
         ## Build the masked image
