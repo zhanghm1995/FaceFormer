@@ -1,8 +1,8 @@
 checkpoint_dir: work_dir/train_2d_3d_fusion_gan
 test_mode: False
 
-pretrained_gan_checkpoint: work_dir/train_2d_3d_fusion_resnet18/pretrained_checkpoint/epoch=47-step=41183.ckpt
-checkpoint: null
+pretrained_gan_checkpoint: null
+checkpoint: /data/zhanghm/Models/FaceFormer/face_2d_3d_fusion/epoch=3-step=3431.ckpt
 
 ## Trainer parameters
 check_val_every_n_epoch: 4
