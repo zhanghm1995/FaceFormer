@@ -34,7 +34,7 @@ class Face2D3DFusion(pl.LightningModule):
         self.config = config
 
         self.save_hyperparameters()
-        
+
         ## Define the audio encoder
         self.audio_encoder = Wav2Vec2Encoder(self.device, video_fps=25)
 
@@ -113,16 +113,26 @@ class Face2D3DFusion(pl.LightningModule):
         model_output = self(batch)
 
         ## 2) Calculate the loss
-        loss = self.compute_loss(batch, model_output)
+        loss_dict = self.compute_loss(batch, model_output)
         
-        return loss
+        total_loss = 0.0
+        for value in loss_dict.values():
+            total_loss += value
+
+        self.log('total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=True)
+        self.log('lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
+
+        return total_loss
     
     def validation_step(self, batch, batch_idx):
         ## 1) Forward the network
         model_output = self(batch)
 
         ## 2) Calculate the loss
-        loss = self.compute_loss(batch, model_output)
+        loss_dict = self.compute_loss(batch, model_output)
 
         if batch_idx == 0:
             return (model_output, batch)
@@ -145,8 +155,8 @@ class Face2D3DFusion(pl.LightningModule):
                                   audio_array=batch['raw_audio'])
 
     def compute_loss(self, data_dict, model_output):
-        total_loss = 0.0
 
+        loss_dict = {}
         if self.config.use_3d:
             ## 3D loss
             pred_params = model_output['face_3d_params']
@@ -159,25 +169,18 @@ class Face2D3DFusion(pl.LightningModule):
             lossg_e = 20 * F.smooth_l1_loss(pred_params[:, :, :], tgt_params[:, :, :])
             lossg_em = 200 * F.smooth_l1_loss(motionlogits[:,:,:], tgt_motion[:,:,:])
 
-            loss_3d = loss_s + lossg_e + lossg_em
-
-            total_loss += loss_3d
-            self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
-            self.log('loss_s', loss_s, on_step=True, on_epoch=True, prog_bar=False)
-            self.log('lossg_e', lossg_e, on_step=True, on_epoch=True, prog_bar=False)
-            self.log('lossg_em', lossg_em, on_step=True, on_epoch=True, prog_bar=False)
+            loss_dict['loss_s'] = loss_s
+            loss_dict['lossg_e'] = lossg_e
+            loss_dict['lossg_em'] = lossg_em
         
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
         loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
 
-        total_loss += loss_2d
+        loss_dict['loss_2d_l1'] = loss_2d
         
-        self.log('total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('loss_2d', loss_2d, on_step=True, on_epoch=True, prog_bar=True)
-
-        return total_loss
+        return loss_dict
 
     def encode_audio(self, x: Tensor, lengths=None, sample_rate=16000):
         """_summary_

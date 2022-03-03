@@ -13,6 +13,7 @@ import pytorch_lightning as pl
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
 from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 config = OmegaConf.load('./config/config_2d_3d_fusion_mmt.yaml')
