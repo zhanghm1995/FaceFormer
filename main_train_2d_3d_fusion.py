@@ -13,11 +13,17 @@ import pytorch_lightning as pl
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
 from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
-config = OmegaConf.load('./config/config_2d_3d_fusion.yaml')
+config = OmegaConf.load('./config/config_2d_3d_fusion_mmt.yaml')
 
-model = Face2D3DFusion(config)
+## Create model
+if config.checkpoint is None:
+    model = Face2D3DFusion(config)
+else:
+    print(f"Load pretrained model from {config.checkpoint}")
+    model = Face2D3DFusion(config).load_from_checkpoint(config.checkpoint, config=config)
 
 if not config['test_mode']:
     print(f"{'='*25} Start Traning, Good Luck! {'='*25}")
@@ -35,7 +41,8 @@ if not config['test_mode']:
                          check_val_every_n_epoch=config.check_val_every_n_epoch)
     # trainer = pl.Trainer(gpus=4, default_root_dir=config['checkpoint_dir'], accelerator="gpu", strategy="ddp")
 
-    predictions = trainer.fit(model, train_dataloader, val_dataloader)
+    ## Resume the training state
+    predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
 else:
     test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")
