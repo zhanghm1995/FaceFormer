@@ -119,11 +119,11 @@ class Face2D3DFusion(pl.LightningModule):
         for value in loss_dict.values():
             total_loss += value
 
-        self.log('total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
-        self.log('lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=True)
-        self.log('lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
-        self.log('loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('train/lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('train/loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
 
         return total_loss
     
@@ -133,6 +133,16 @@ class Face2D3DFusion(pl.LightningModule):
 
         ## 2) Calculate the loss
         loss_dict = self.compute_loss(batch, model_output)
+
+        total_loss = 0.0
+        for value in loss_dict.values():
+            total_loss += value
+
+        self.log('val/total_recon_loss', total_loss)
+        self.log('val/loss_s', loss_dict['loss_s'])
+        self.log('val/lossg_e', loss_dict['lossg_e'])
+        self.log('val/lossg_em', loss_dict['lossg_em'])
+        self.log('val/loss_2d_l1', loss_dict['loss_2d_l1'])
 
         if batch_idx == 0:
             return (model_output, batch)
