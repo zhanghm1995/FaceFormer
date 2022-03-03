@@ -40,7 +40,8 @@ if not config['test_mode']:
                          check_val_every_n_epoch=config.check_val_every_n_epoch)
     # trainer = pl.Trainer(gpus=4, default_root_dir=config['checkpoint_dir'], accelerator="gpu", strategy="ddp")
 
-    predictions = trainer.fit(model, train_dataloader, val_dataloader)
+    ## Resume the training state
+    predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
 else:
     test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")

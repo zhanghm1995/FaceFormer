@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_2d_3d_fusion_mmt
+checkpoint_dir: work_dir/train_2d_3d_fusion_mmt_debug
 test_mode: False
 
 pretrained_gan_checkpoint: null

@@ -33,6 +33,8 @@ class Face2D3DFusion(pl.LightningModule):
             config = EasyDict(kwargs)
         self.config = config
 
+        self.save_hyperparameters()
+        
         ## Define the audio encoder
         self.audio_encoder = Wav2Vec2Encoder(self.device, video_fps=25)
 
