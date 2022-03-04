@@ -34,7 +34,7 @@ def save_video(image, output_video_fname, image_size=512,
     print("Save video done!")
 
 
-def save_image_array_to_video(image_array, output_dir, fps=25, audio_array=None, audio_sample_rate=16000):
+def save_image_array_to_video(image_array, output_dir, name=None, fps=25, audio_array=None, audio_sample_rate=16000):
     
     os.makedirs(output_dir, exist_ok=True)
 
@@ -52,7 +52,11 @@ def save_image_array_to_video(image_array, output_dir, fps=25, audio_array=None,
         
         writer.release()
 
-        output_video_fname = osp.join(output_dir, f"{i:03d}.mp4")
+        if name is not None:
+            output_video_fname = osp.join(output_dir, f"{name}_{i:03d}.mp4")
+        else:
+            output_video_fname = osp.join(output_dir, f"{i:03d}.mp4")
+
         ## Combine the audio
         if audio_array is not None:
             tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav', dir=output_dir)

@@ -116,3 +116,20 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
         collate_fn=collate_fn
     )
     return data_loader
+
+
+def get_test_2d_3d_dataset(config):
+    from .face_2d_3d_test_dataset import Face2D3DTestDataset
+
+    dataset = Face2D3DTestDataset(config, fetch_length=200)
+
+    data_loader = DataLoader(
+        dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+        collate_fn=collate_fn
+    )
+    return data_loader
