@@ -21,6 +21,7 @@ import torch
 import tempfile
 from utils.face_detector import detect_face_from_one_image
 import torchvision.transforms as transforms
+from typing import List
 
 
 def parse_config():
@@ -176,6 +177,54 @@ def create_input_data(face_image, audio, device, face_3d_params=None):
     return data_dict
 
 
+def DataGenerator(frames: List, face_images: List, face_coords: List, 
+                  driven_audio_data, fetch_length):
+    audio_stride = round(16000 * fetch_length / 25)
+    audio_chunks = range(0, len(driven_audio_data), audio_stride)
+
+
+    for frame_idx, audio_idx in enumerate(audio_chunks):
+        batch_frames = frames[frame_idx: frame_idx+fetch_length]
+        batch_face = face_images[frame_idx: frame_idx+fetch_length]
+        batch_coords = face_coords[frame_idx: frame_idx+fetch_length]
+        audio_data = driven_audio_data[audio_idx: audio_idx+audio_stride]
+        
+        if len(audio_data) != audio_stride:
+            actual_frame_lenth = round(len(audio_data) / 16000 * 25)
+            batch_frames = batch_frames[:actual_frame_lenth]
+            batch_face = batch_face[:actual_frame_lenth]
+            batch_coords = batch_coords[:actual_frame_lenth]
+
+        yield batch_frames, batch_face, batch_coords, audio_data 
+    
+
+def main_long_sequence(cfg):
+    from scipy.io import wavfile
+
+    ## 1) Load the audio
+    driven_audio_data = read_audio(audio_path=cfg.driven_audio_path)
+    
+    num_frames = round(len(driven_audio_data) / 16000 * 25)
+    ## 2) Load the video
+    all_frames = get_frames_from_video(cfg.video_path, num_need_frames=num_frames)
+    
+    ## 3) Detect the face
+    face_image, face_coords = detect_face(all_frames)
+
+    data_gen = DataGenerator(
+        all_frames, face_image, face_coords, driven_audio_data, fetch_length=100)
+    
+    for data in data_gen:
+        batch_frames, batch_face, batch_coords, audio_data = data
+        print(len(batch_frames))
+        print(len(batch_face))
+
+        print(len(batch_coords))
+        print(audio_data.shape)
+    
+    
+
+
 def main(cfg):
     from utils.save_data import save_image_array_to_video
     from scipy.io import wavfile
@@ -241,4 +290,6 @@ def main(cfg):
 if __name__ == "__main__":
     cfg = parse_config()
 
+    main_long_sequence(cfg)
+    exit(0)
     main(cfg)
