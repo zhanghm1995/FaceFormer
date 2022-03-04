@@ -129,7 +129,8 @@ class Face2D3DFusion(pl.LightningModule):
         ## 2) Visualization
         save_image_array_to_video(model_output['face_2d_image'],
                                   osp.join(self.config['checkpoint_dir'], "vis"),
-                                  audio_array=batch['raw_audio'])
+                                  audio_array=batch['raw_audio'],
+                                  name=batch_idx)
 
     def compute_loss(self, data_dict, model_output):
         ## 3D loss
