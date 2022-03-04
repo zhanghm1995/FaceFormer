@@ -1,8 +1,8 @@
-checkpoint_dir: work_dir/train_2d_3d_fusion_mmt_debug
-test_mode: False
+checkpoint_dir: work_dir2/train_2d_3d_fusion_mmt_debug
+test_mode: True
 
 pretrained_gan_checkpoint: null
-checkpoint: work_dir/train_2d_3d_fusion_mmt/lightning_logs/version_0/checkpoints/epoch=3-step=3431.ckpt
+checkpoint: work_dir/train_2d_3d_fusion_mmt/lightning_logs/version_1/checkpoints/epoch=71-step=61284.ckpt
 
 ## Trainer parameters
 check_val_every_n_epoch: 4
@@ -44,6 +44,7 @@ Face2D3DXFormer:
 
   use_3d: ${use_3d}
   use_3d_mask: True # whether to use 3D mask like SAT
+  test_mode: ${test_mode}
 
 mm_fusion_decoder:
   d_model: ${d_model}

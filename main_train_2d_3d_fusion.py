@@ -44,11 +44,10 @@ if not config['test_mode']:
     ## Resume the training state
     predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
 else:
+    print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
+
     test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
     print(f"The testing dataloader length is {len(test_dataloader)}")
 
-    model = model.load_from_checkpoint("work_dir/train_2d_3d_fusion_resnet18/pretrained_checkpoint/epoch=47-step=41183.ckpt", 
-                                       config=config)
-    
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'], logger=None)
     trainer.test(model, test_dataloader)

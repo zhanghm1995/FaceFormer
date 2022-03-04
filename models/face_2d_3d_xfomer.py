@@ -63,7 +63,7 @@ class Face2D3DXFormer(nn.Module):
         Returns:
             _type_: _description_
         """
-        if self.config['use_3d']:
+        if self.config['use_3d'] and not self.config.test_mode:
             attention_mask = None
 
             if self.config.use_3d_mask:
