@@ -10,7 +10,7 @@ Description: The main training entrance
 import torch
 import os.path as osp
 import pytorch_lightning as pl
-from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
+from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset, get_test_2d_3d_dataset
 from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -47,9 +47,11 @@ if not config['test_mode']:
     ## Resume the training state
     predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
 else:
-    print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
+    config['dataset']['audio_path'] = "data/audio_samples/slogan_english_16k.wav"
+    config['dataset']['video_path'] = "data/id00002/obama_weekly_029/face_image"
+    config['dataset']['face_3d_params_path'] = "data/id00002/obama_weekly_029/deep3dface.npz"
 
-    test_dataloader = get_random_fixed_2d_3d_dataset(config['dataset'], split="val", num_sequences=1)
+    test_dataloader = get_test_2d_3d_dataset(config['dataset'])
     print(f"The testing dataloader length is {len(test_dataloader)}")
 
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'], logger=None)
