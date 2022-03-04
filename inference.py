@@ -26,7 +26,7 @@ from typing import List
 
 def parse_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_gan.yaml', help='the config_file')
+    parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_test.yaml', help='the config_file')
     parser.add_argument('--video_path', type=str, default="/home/haimingzhang/Research/Programming/cv-fighter/facial_preprocessed/obama_weekly_25fps/obama_weekly_023.mp4", help='input video path')
     parser.add_argument('--driven_audio_path', type=str, default="./data/audio_samples/slogan_english_16k.wav", help='the driven audio path')
     parser.add_argument('--output_dir', type=str, default="./", help='log location')
@@ -74,8 +74,8 @@ def get_frames_from_video(video_path, num_need_frames=-1):
 
 def get_model(cfg_path):
     config = OmegaConf.load(cfg_path)
-    from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN
-    model = Face2D3DFusionGAN(config).load_from_checkpoint(config.checkpoint, config=config)
+    from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN, Face2D3DFusion
+    model = Face2D3DFusion(config).load_from_checkpoint(config.checkpoint, config=config)
     return model
 
 def crop_face(input_image, face_coord, crop_squared=True):
@@ -168,35 +168,45 @@ def create_input_data(face_image, audio, device, face_3d_params=None):
     data_dict = {}
     
     data_dict['gt_face_image'] = torch.stack(face_image)[None].to(device) # (1, 100, 3, 192, 192)
-    data_dict['raw_audio'] = torch.tensor(audio.astype(np.float32))[None].to(device)
-    if face_3d_params is not None:
-        data_dict['gt_face_3d_params'] = torch.from_numpy(face_3d_params.astype(np.float32))[None].to(device) * 1.5
-    else:
-        data_dict['gt_face_3d_params'] = torch.zeros((1, 100, 64), dtype=torch.float32).to(device)
+    data_dict['raw_audio'] = torch.from_numpy(audio.astype(np.float32))[None].to(device)
+    data_dict['gt_face_3d_params'] = torch.from_numpy(face_3d_params.astype(np.float32))[None].to(device)
+
+    # if face_3d_params is not None:
+    #     torch.from_numpy(face_3d_params.astype(np.float32))[None].to(device) * 1.5
+    # else:
+    #     data_dict['gt_face_3d_params'] = torch.zeros((1, 100, 64), dtype=torch.float32).to(device)
 
     return data_dict
 
 
-def DataGenerator(frames: List, face_images: List, face_coords: List, 
-                  driven_audio_data, fetch_length):
+def DataGenerator(frames: List, face_images: List, face_coords: List,
+                  driven_audio_data, face_3d_params=None, fetch_length=100):
     audio_stride = round(16000 * fetch_length / 25)
     audio_chunks = range(0, len(driven_audio_data), audio_stride)
+    frame_chunks = range(0, len(frames), fetch_length)
 
-
-    for frame_idx, audio_idx in enumerate(audio_chunks):
+    idx = -1
+    for frame_idx, audio_idx in zip(frame_chunks, audio_chunks):
+        idx += 1
+        if idx == 0:
+            continue
         batch_frames = frames[frame_idx: frame_idx+fetch_length]
         batch_face = face_images[frame_idx: frame_idx+fetch_length]
         batch_coords = face_coords[frame_idx: frame_idx+fetch_length]
         audio_data = driven_audio_data[audio_idx: audio_idx+audio_stride]
         
+        if face_3d_params is not None:
+            batch_3d_params = face_3d_params[frame_idx:frame_idx+fetch_length, :]
+
         if len(audio_data) != audio_stride:
-            actual_frame_lenth = round(len(audio_data) / 16000 * 25)
+            actual_frame_lenth = int(len(audio_data) / 16000 * 25)
             batch_frames = batch_frames[:actual_frame_lenth]
             batch_face = batch_face[:actual_frame_lenth]
             batch_coords = batch_coords[:actual_frame_lenth]
+            batch_3d_params = batch_3d_params[:actual_frame_lenth]
 
-        yield batch_frames, batch_face, batch_coords, audio_data 
-    
+        yield batch_frames, batch_face, batch_coords, audio_data, batch_3d_params 
+
 
 def main_long_sequence(cfg):
     from scipy.io import wavfile
@@ -205,24 +215,73 @@ def main_long_sequence(cfg):
     driven_audio_data = read_audio(audio_path=cfg.driven_audio_path)
     
     num_frames = round(len(driven_audio_data) / 16000 * 25)
+    
     ## 2) Load the video
     all_frames = get_frames_from_video(cfg.video_path, num_need_frames=num_frames)
     
     ## 3) Detect the face
     face_image, face_coords = detect_face(all_frames)
 
-    data_gen = DataGenerator(
-        all_frames, face_image, face_coords, driven_audio_data, fetch_length=100)
-    
-    for data in data_gen:
-        batch_frames, batch_face, batch_coords, audio_data = data
-        print(len(batch_frames))
-        print(len(batch_face))
+    npz_file = "./data/id00002/obama_weekly_003/deep3dface.npz"
+    face_3d_params = np.load(open(npz_file, 'rb'))['face']
 
-        print(len(batch_coords))
-        print(audio_data.shape)
+    data_gen = DataGenerator(
+        all_frames, face_image, face_coords, driven_audio_data, face_3d_params=face_3d_params, fetch_length=100)
     
+    # for data in data_gen:
+    #     batch_frames, batch_face, batch_coords, audio_data = data
+        
+    device = torch.device("cuda")
+
+    model = get_model(cfg.cfg).to(device).eval()
     
+
+    tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4')
+
+    i = -1
+    for data in data_gen:
+        batch_frames, batch_face, batch_coords, audio_data, batch_3d_params = data
+
+        i += 1
+
+        input_data_dict = create_input_data(batch_face, audio_data, device, face_3d_params=batch_3d_params)
+
+        with torch.no_grad():
+            model_output = model(input_data_dict)
+
+        pred_face_image = model_output['face_2d_image'][0].permute(0, 2, 3, 1).cpu().numpy() * 255
+
+        if i == 0:
+            img_shape = batch_frames[0].shape[:2][::-1] # (w, h)
+            writer = cv2.VideoWriter(tmp_video_file.name, 
+                                    cv2.VideoWriter_fourcc(*'mp4v'), 
+                                    25, img_shape, True)
+        
+        for p, f, c in zip(pred_face_image, batch_frames, batch_coords):
+            x1, y1, x2, y2 = c
+
+            pred_image = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+            
+            origin_f = f.copy()
+            f[y1:y2, x1:x2] = pred_image
+            # writer.write(f)
+
+            res = merge_face_contour_only(origin_f, f, (y1, y2, x1, x2))
+            writer.write(res)
+    
+    writer.release()
+
+    print("Start plugin the audio signal...")
+    ## Plugin the audio signal
+    driven_audio_data = driven_audio_data[64000:]
+
+    tmp_audio_file = tempfile.NamedTemporaryFile('w', suffix='.wav')
+    wavfile.write(tmp_audio_file.name, 16000, driven_audio_data)
+
+    cmd = f'ffmpeg -y -i {tmp_audio_file.name} -i {tmp_video_file.name} -vcodec h264 -ac 2 -channel_layout stereo -pix_fmt yuv420p ./work_dir/results/example.mp4'
+    subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    print("Inference done!")
 
 
 def main(cfg):

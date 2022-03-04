@@ -15,10 +15,15 @@ from torchvision.models.resnet import resnet34, resnet18
 
 class ResNetEmbedding(nn.Module):
 
-    def __init__(self, pretrained=True) -> None:
+    def __init__(self, arch='resnet34', pretrained=True) -> None:
         super().__init__()
 
-        net = resnet18(pretrained)
+        if arch == "resnet34":
+            net = resnet34(pretrained)
+        elif arch == "resnet18":
+            net = resnet18(pretrained)
+        else:
+            raise ValueError("Please choose the correct ResNet Arch. Options: [resnet34|resnet18]")
         
         self.conv1 = net.conv1
         self.bn1 = net.bn1

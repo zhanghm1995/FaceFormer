@@ -45,7 +45,7 @@ class Face2D3DXFormer(nn.Module):
             print("[Face2D3DXFormer] Only use the 2D information")
 
         ## Define the 2D Decoder
-        self.face_2d_decoder = ImageTokenEncoder192(in_ch=6)
+        self.face_2d_decoder = ImageTokenEncoder192(in_ch=3)
     
     def forward_2d_only(self, input, masked_image: Tensor):
         face_2d_embedding = self.encoder(input, mask=None, src_key_padding_mask=None) # (2S, B, E)
@@ -65,7 +65,7 @@ class Face2D3DXFormer(nn.Module):
         Returns:
             _type_: _description_
         """
-        if self.config['use_3d'] and not self.config.test_mode:
+        if self.config['use_3d']:
             attention_mask = None
 
             if self.config.use_3d_mask:
