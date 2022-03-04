@@ -7,26 +7,43 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: The main training entrance 
 '''
 
+import argparse
 import torch
 import os.path as osp
 import pytorch_lightning as pl
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset, get_test_2d_3d_dataset
-from models.face_2d_3d_fusion import Face2D3DFusion
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from utils.utils import get_git_commit_id
+from models import get_model
 
-config = OmegaConf.load('./config/config_2d_3d_fusion_mmt_with_ref.yaml')
 
-config['commit_id'] = get_git_commit_id()
+def parse_config():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_new.yaml', help='the config file path')
+    parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
+
+    args = parser.parse_args()
+    config = OmegaConf.load(args.cfg)
+    config.update(vars(args)) # override the configuration using the value in args
+
+    try:
+        config['commit_id'] = get_git_commit_id()
+    except:
+        print("[WARNING] Couldn't get the git commit id")
+    return config
+
+
+config = parse_config()
 
 ## Create model
+model = get_model(config['model_name'], config)
+
 if config.checkpoint is None:
     print(f"[WARNING] Train from scratch!")
-    model = Face2D3DFusion(config)
 else:
     print(f"Load pretrained model from {config.checkpoint}")
-    model = Face2D3DFusion(config).load_from_checkpoint(config.checkpoint, config=config)
+    model = model.load_from_checkpoint(config.checkpoint, config=config)
 
 if not config['test_mode']:
     print(f"{'='*25} Start Traning, Good Luck! {'='*25}")

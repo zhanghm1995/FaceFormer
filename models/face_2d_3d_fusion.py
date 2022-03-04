@@ -167,7 +167,6 @@ class Face2D3DFusion(pl.LightningModule):
                                   name=batch_idx)
 
     def compute_loss(self, data_dict, model_output):
-
         loss_dict = {}
         if self.config.use_3d:
             ## 3D loss
