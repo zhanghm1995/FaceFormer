@@ -16,10 +16,11 @@ from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 
-config = OmegaConf.load('./config/config_2d_3d_fusion_mmt.yaml')
+config = OmegaConf.load('./config/config_2d_3d_fusion_mmt_no_TCN.yaml')
 
 ## Create model
 if config.checkpoint is None:
+    print(f"[WARNING] Train from scratch!")
     model = Face2D3DFusion(config)
 else:
     print(f"Load pretrained model from {config.checkpoint}")

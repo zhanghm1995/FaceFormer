@@ -29,14 +29,16 @@ class Face2D3DXFormer(nn.Module):
 
         if self.config['use_3d']:
             ## Define the 3D Decoder
-            self.face_3d_decoder = nn.Sequential(
-                nn.Conv1d(128, 256, kernel_size=3, stride=1,padding=1),
-                nn.BatchNorm1d(256),
-                nn.LeakyReLU(),
-                nn.Conv1d(256, 256, kernel_size=3, stride=1,padding=1),
-                nn.BatchNorm1d(256),
-                nn.Conv1d(256, 128, kernel_size=3, stride=1,padding=1),
-            )
+            # self.face_3d_decoder = nn.Sequential(
+            #     nn.Conv1d(128, 256, kernel_size=3, stride=1,padding=1),
+            #     nn.BatchNorm1d(256),
+            #     nn.LeakyReLU(),
+            #     nn.Conv1d(256, 256, kernel_size=3, stride=1,padding=1),
+            #     nn.BatchNorm1d(256),
+            #     nn.Conv1d(256, 128, kernel_size=3, stride=1,padding=1),
+            # )
+
+            self.face_3d_decoder = nn.Identity()
         
             self.output_fc = nn.Linear(128, 64)
         else:
