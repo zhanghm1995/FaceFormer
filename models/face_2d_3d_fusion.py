@@ -7,7 +7,6 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: 2D-3D Fusion transformer in Pytorch-Lightning
 '''
 
-from re import template
 from easydict import EasyDict
 import torch
 import torch.nn as nn
@@ -103,6 +102,8 @@ class Face2D3DFusion(pl.LightningModule):
         ## Build the masked image
         masked_image = data_dict['gt_face_image'].clone().detach()
         masked_image[:, :, :, masked_image.shape[3]//2:] = 0.
+        ## Padding the reference face image
+        masked_image = torch.concat([masked_image, data_dict['ref_face_image']], dim=2)
 
         model_output_dict = self.face_2d_3d_xformer(fusion_embedding, masked_image)
 

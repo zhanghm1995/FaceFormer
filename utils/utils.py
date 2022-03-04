@@ -50,3 +50,15 @@ def tensor2im(input_image, imtype=np.uint8):
     else:  # if it is a numpy array, do nothing
         image_numpy = input_image
     return image_numpy.astype(imtype)
+
+
+def get_git_commit_id():
+    """Get the Git commit hash id for logging usage
+
+    Returns:
+        str: hash id
+    """
+    import git
+    repo = git.Repo(search_parent_directories=False)
+    sha = repo.head.object.hexsha
+    return sha

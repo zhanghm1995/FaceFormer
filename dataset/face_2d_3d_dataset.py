@@ -82,8 +82,9 @@ class Face2D3DDataset(FaceImageDataset):
         ## Get the reference image and reference 3D face parameters
         ref_start_idx = self._get_reference_image(
             self.total_frames_list[main_idx], choose_video, start_idx)
+        
         ## Read the reference images
-        # ref_img_seq_tensor = self._read_image_sequence(choose_video, ref_start_idx)
+        ref_img_seq_tensor = self._read_image_sequence(choose_video, ref_start_idx)
         ref_face_3d_params_tensor = self._get_face_3d_params(choose_video, ref_start_idx)
         
         ## Geth the reference raw audio vector
@@ -94,7 +95,7 @@ class Face2D3DDataset(FaceImageDataset):
         data_dict = {}
         data_dict['gt_face_image'] = gt_img_seq_tensor
         data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
-        # data_dict['ref_face_image'] = ref_img_seq_tensor
+        data_dict['ref_face_image'] = ref_img_seq_tensor
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         data_dict['ref_raw_audio'] = torch.tensor(ref_audio_seq.astype(np.float32))

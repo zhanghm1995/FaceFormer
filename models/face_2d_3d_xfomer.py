@@ -29,23 +29,23 @@ class Face2D3DXFormer(nn.Module):
 
         if self.config['use_3d']:
             ## Define the 3D Decoder
-            # self.face_3d_decoder = nn.Sequential(
-            #     nn.Conv1d(128, 256, kernel_size=3, stride=1,padding=1),
-            #     nn.BatchNorm1d(256),
-            #     nn.LeakyReLU(),
-            #     nn.Conv1d(256, 256, kernel_size=3, stride=1,padding=1),
-            #     nn.BatchNorm1d(256),
-            #     nn.Conv1d(256, 128, kernel_size=3, stride=1,padding=1),
-            # )
+            self.face_3d_decoder = nn.Sequential(
+                nn.Conv1d(128, 256, kernel_size=3, stride=1,padding=1),
+                nn.BatchNorm1d(256),
+                nn.LeakyReLU(),
+                nn.Conv1d(256, 256, kernel_size=3, stride=1,padding=1),
+                nn.BatchNorm1d(256),
+                nn.Conv1d(256, 128, kernel_size=3, stride=1,padding=1),
+            )
 
-            self.face_3d_decoder = nn.Identity()
+            # self.face_3d_decoder = nn.Identity()
         
             self.output_fc = nn.Linear(128, 64)
         else:
             print("[Face2D3DXFormer] Only use the 2D information")
 
         ## Define the 2D Decoder
-        self.face_2d_decoder = ImageTokenEncoder192(in_ch=3)
+        self.face_2d_decoder = ImageTokenEncoder192(in_ch=6)
     
     def forward_2d_only(self, input, masked_image: Tensor):
         face_2d_embedding = self.encoder(input, mask=None, src_key_padding_mask=None) # (2S, B, E)
