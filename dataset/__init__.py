@@ -62,7 +62,11 @@ def get_random_fixed_2d_dataset(config, split, num_sequences):
 def get_2d_3d_dataset(config, split):
     from .face_2d_3d_dataset import Face2D3DDataset
 
-    dataset = Face2D3DDataset(data_root=config['data_root'], split=split, fetch_length=75)
+    dataset = Face2D3DDataset(data_root=config['data_root'], 
+                              split=split, 
+                              fetch_length=75,
+                              load_ref_image=False,
+                              load_mouth_mask=True)
     
     ## minibatch for debuging
     # sub_dataset = []

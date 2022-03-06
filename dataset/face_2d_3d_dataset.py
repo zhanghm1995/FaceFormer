@@ -84,7 +84,7 @@ class Face2D3DDataset(FaceImageDataset):
         if self.load_mouth_mask:
             gt_img_seq_tensor, gt_img_mouth_mask_tensor = self._read_image_sequence(
                 choose_video, start_idx, need_mouth_masked_img=True)
-            data_dict['gt_img_mouth_mask'] =  gt_img_mouth_mask_tensor
+            data_dict['input_image'] =  gt_img_mouth_mask_tensor
         else:
             gt_img_seq_tensor = self._read_image_sequence(
                 choose_video, start_idx, need_mouth_masked_img=False)

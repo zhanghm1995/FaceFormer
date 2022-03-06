@@ -22,6 +22,7 @@ def parse_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_new.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
+    parser.add_argument('--checkpoint_dir', type=str, default='work_dir2/train_2d_3d_fusion_debug')
 
     args = parser.parse_args()
     config = OmegaConf.load(args.cfg)
