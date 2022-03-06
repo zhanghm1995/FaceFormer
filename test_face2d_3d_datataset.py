@@ -12,7 +12,7 @@ from dataset.face_2d_3d_dataset import Face2D3DDataset
 if __name__ == "__main__":
     data_root = "/home/haimingzhang/Research/Face/FaceFormer/FaceFormer/data/id00002"
     split = "train"
-    dataset = Face2D3DDataset(data_root, split)
+    dataset = Face2D3DDataset(data_root, split, load_mouth_mask=True, load_ref_image=False)
     print(len(dataset))
 
     data = dataset[180]

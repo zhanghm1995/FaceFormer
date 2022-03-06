@@ -138,7 +138,8 @@ class FaceImageDataset(Dataset):
         return ref_start_idx
 
     def _read_image_sequence(self, video_dir, start_idx, need_mouth_masked_img=False):
-        img_list = [], mouth_masked_img_list = []
+        img_list, mouth_masked_img_list = [], []
+        
         for idx in range(start_idx, start_idx + self.fetch_length):
             ## Read the face image and resize
             img_path = osp.join(self.data_root, video_dir, "face_image", f"{idx:06d}.jpg")

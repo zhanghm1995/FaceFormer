@@ -18,7 +18,6 @@ class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
         super(Face2D3DDataset, self).__init__(data_root, split, **kwargs)
         
-        self.need_load_image = kwargs.get("need_load_image", True)
         self.load_ref_image = kwargs.get("load_ref_image", True)
         self.load_mouth_mask = kwargs.get("load_mouth_mask", True)
 
