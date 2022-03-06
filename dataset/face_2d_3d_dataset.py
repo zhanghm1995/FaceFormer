@@ -18,7 +18,8 @@ class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
         super(Face2D3DDataset, self).__init__(data_root, split, **kwargs)
         
-        self.need_load_image = kwargs.get("need_load_image", True)
+        self.load_ref_image = kwargs.get("load_ref_image", True)
+        self.load_mouth_mask = kwargs.get("load_mouth_mask", True)
 
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):
@@ -76,15 +77,27 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         ## Get the GT image and GT 3D face parameters
-        gt_img_seq_tensor = self._read_image_sequence(choose_video, start_idx)
         gt_face_3d_params_tensor = self._get_face_3d_params(choose_video, start_idx)
+
+        data_dict = {}
+
+        if self.load_mouth_mask:
+            gt_img_seq_tensor, gt_img_mouth_mask_tensor = self._read_image_sequence(
+                choose_video, start_idx, need_mouth_masked_img=True)
+            data_dict['gt_img_mouth_mask'] =  gt_img_mouth_mask_tensor
+        else:
+            gt_img_seq_tensor = self._read_image_sequence(
+                choose_video, start_idx, need_mouth_masked_img=False)
 
         ## Get the reference image and reference 3D face parameters
         ref_start_idx = self._get_reference_image(
             self.total_frames_list[main_idx], choose_video, start_idx)
-        
+
         ## Read the reference images
-        ref_img_seq_tensor = self._read_image_sequence(choose_video, ref_start_idx)
+        if self.load_ref_image:
+            ref_img_seq_tensor = self._read_image_sequence(choose_video, ref_start_idx)
+            data_dict['ref_face_image'] = ref_img_seq_tensor
+
         ref_face_3d_params_tensor = self._get_face_3d_params(choose_video, ref_start_idx)
         
         ## Geth the reference raw audio vector
@@ -92,10 +105,10 @@ class Face2D3DDataset(FaceImageDataset):
         if ref_audio_seq is None:
             return None
 
-        data_dict = {}
+        
         data_dict['gt_face_image'] = gt_img_seq_tensor
         data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
-        data_dict['ref_face_image'] = ref_img_seq_tensor
+        
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         data_dict['ref_raw_audio'] = torch.tensor(ref_audio_seq.astype(np.float32))
