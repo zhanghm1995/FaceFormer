@@ -59,7 +59,7 @@ def get_random_fixed_2d_dataset(config, split, num_sequences):
     return data_list
 
 
-def get_2d_3d_dataset(config, split):
+def get_2d_3d_dataset(config, split, shuffle=None):
     from .face_2d_3d_dataset import Face2D3DDataset
 
     dataset = Face2D3DDataset(data_root=config['data_root'], 
@@ -76,7 +76,7 @@ def get_2d_3d_dataset(config, split):
     data_loader = DataLoader(
         dataset,
         batch_size=config['batch_size'],
-        shuffle=(split=="train"),
+        shuffle=(split=="train") if shuffle is None else shuffle,
         num_workers=config['number_workers'],
         # pin_memory=True,
         pin_memory=False,
@@ -125,7 +125,7 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
 def get_test_2d_3d_dataset(config):
     from .face_2d_3d_test_dataset import Face2D3DTestDataset
 
-    dataset = Face2D3DTestDataset(config, fetch_length=200)
+    dataset = Face2D3DTestDataset(config, fetch_length=75, load_mouth_mask=True)
 
     data_loader = DataLoader(
         dataset,

@@ -60,6 +60,8 @@ class Face2D3DTestDataset(Dataset):
         self.video_path = config['video_path']
         self.face_3d_params_path = config['face_3d_params_path']
 
+        self.load_mouth_mask = kwargs.get("load_mouth_mask", True)
+
         self.fetch_length = kwargs.get("fetch_length", 75)
 
         self.target_image_size = (192, 192)
@@ -89,16 +91,30 @@ class Face2D3DTestDataset(Dataset):
 
         assert len(self.audio_chunks) <= len(self.frame_chunks)
 
-    def _read_image_sequence(self, image_path_list: List):
-        img_list = []
+    def _read_image_sequence(self, image_path_list: List, need_mouth_masked_img: bool = False):
+        img_list, mouth_masked_img_list = [], []
         for img_path in image_path_list:
             img = cv2.resize(cv2.imread(img_path), self.target_image_size)
+
+            if need_mouth_masked_img:
+                mouth_mask_img_path = img_path.replace("face_image", "mouth_mask").replace(".jpg", ".png")
+                mouth_img = cv2.resize(cv2.imread(mouth_mask_img_path, cv2.IMREAD_UNCHANGED), self.target_image_size)
+                mask2 = cv2.bitwise_not(mouth_img)
+                mouth_masked_img = cv2.bitwise_and(img, img, mask=mask2)
+
+                mouth_masked_img = self.image_transforms(mouth_masked_img) # To Tensor
+                mouth_masked_img_list.append(mouth_masked_img)
+
             img = self.image_transforms(img)
-            
             img_list.append(img)
-        
+
         img_seq_tensor = torch.stack(img_list) # to (T, 3, H, W)
-        return img_seq_tensor
+
+        if need_mouth_masked_img:
+            mouth_masked_img_tensor =  torch.stack(mouth_masked_img_list)
+            return img_seq_tensor, mouth_masked_img_tensor
+        else:
+            return img_seq_tensor
 
     def __len__(self):
         return len(self.audio_chunks)
@@ -112,10 +128,19 @@ class Face2D3DTestDataset(Dataset):
         actual_frame_lenth = int(len(audio_seq) / 16000 * 25)
 
         frame_start_dix = self.frame_chunks[index]
-        image_seq_tensor = self._read_image_sequence(
-            self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth])
-        
+
         data_dict = {}
+
+        if self.load_mouth_mask:
+            image_seq_tensor, mouth_masked_img_tensor = self._read_image_sequence(
+                self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth],
+                need_mouth_masked_img=True)
+            data_dict['input_image'] = mouth_masked_img_tensor
+        else:
+            image_seq_tensor = self._read_image_sequence(
+                self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth])
+        
+        
         data_dict['gt_face_image'] = image_seq_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         if hasattr(self, "face_3d_prams"):
