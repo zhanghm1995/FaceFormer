@@ -137,17 +137,35 @@ class FaceImageDataset(Dataset):
         
         return ref_start_idx
 
-    def _read_image_sequence(self, video_dir, start_idx):
-        img_list = []
+    def _read_image_sequence(self, video_dir, start_idx, need_mouth_masked_img=False):
+        img_list = [], mouth_masked_img_list = []
         for idx in range(start_idx, start_idx + self.fetch_length):
+            ## Read the face image and resize
             img_path = osp.join(self.data_root, video_dir, "face_image", f"{idx:06d}.jpg")
             img = cv2.resize(cv2.imread(img_path), self.target_image_size)
-            img = self.image_transforms(img)
-            
-            img_list.append(img)
+
+            if need_mouth_masked_img:
+                img_path = osp.join(self.data_root, video_dir, "mouth_mask", f"{idx:06d}.png")
+                mouth_img = cv2.resize(cv2.imread(img_path, cv2.IMREAD_UNCHANGED), self.target_image_size)
+                mask2 = cv2.bitwise_not(mouth_img)
+                mouth_masked_img = cv2.bitwise_and(img, img, mask=mask2)
+
+                img = self.image_transforms(img)
+                mouth_masked_img = self.image_transforms(mouth_masked_img)
+
+                img_list.append(img)
+                mouth_masked_img_list.append(mouth_masked_img)
+            else:
+                img = self.image_transforms(img)
+                img_list.append(img)
         
         img_seq_tensor = torch.stack(img_list) # to (T, 3, H, W)
-        return img_seq_tensor
+
+        if need_mouth_masked_img:
+            mouth_masked_img_tensor =  torch.stack(mouth_masked_img_list)
+            return img_seq_tensor, mouth_masked_img_tensor
+        else:
+            return img_seq_tensor
 
     def __getitem__(self, index):
         main_idx, sub_idx = self._get_data(index)
