@@ -139,7 +139,11 @@ class Face2D3DTestDataset(Dataset):
         else:
             image_seq_tensor = self._read_image_sequence(
                 self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth])
-        
+            
+            ## Lower half masked image
+            masked_image = image_seq_tensor.clone()
+            masked_image[:, :, masked_image.shape[3]//2:] = 0.
+            data_dict['input_image'] = masked_image
         
         data_dict['gt_face_image'] = image_seq_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))

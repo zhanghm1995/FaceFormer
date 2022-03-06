@@ -56,7 +56,7 @@ if not config['test_mode']:
     train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
     print(f"The training dataloader length is {len(train_dataloader)}")
 
-    val_dataloader = get_2d_3d_dataset(config['dataset'], split='val')
+    val_dataloader = get_2d_3d_dataset(config['dataset'], split='val', shuffle=True)
     print(f"The validation dataloader length is {len(val_dataloader)}")
 
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
