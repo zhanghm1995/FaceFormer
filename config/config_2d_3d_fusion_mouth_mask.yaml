@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir2/train_2d_3d_fusion_new
+checkpoint_dir: work_dir2/train_2d_3d_fusion_mouth_mask
 test_mode: False
 
 model_name: Face2D3DFusion
@@ -7,7 +7,7 @@ pretrained_gan_checkpoint: null
 checkpoint: null
 
 ## Trainer parameters
-check_val_every_n_epoch: 2
+check_val_every_n_epoch: 4
 max_epochs: 200
 
 lr: 1e-4
@@ -23,7 +23,7 @@ dataset:
   batch_size: 4
   number_workers: 4
   load_ref_image: False
-  load_mouth_mask: False
+  load_mouth_mask: True
 
 lambda_feat: 10.0
 

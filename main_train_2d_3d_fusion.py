@@ -30,6 +30,7 @@ def parse_config():
     config = OmegaConf.load(args.cfg)
     config.update(vars(args)) # override the configuration using the value in args
 
+    print(OmegaConf.to_yaml(config, resolve=True))
     try:
         config['commit_id'] = get_git_commit_id()
     except:

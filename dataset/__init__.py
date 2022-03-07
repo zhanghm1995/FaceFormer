@@ -65,8 +65,8 @@ def get_2d_3d_dataset(config, split, shuffle=None):
     dataset = Face2D3DDataset(data_root=config['data_root'], 
                               split=split, 
                               fetch_length=75,
-                              load_ref_image=False,
-                              load_mouth_mask=True)
+                              load_ref_image=config['load_ref_image'],
+                              load_mouth_mask=config['load_mouth_mask'])
     
     ## minibatch for debuging
     # sub_dataset = []
@@ -125,7 +125,10 @@ def get_random_fixed_2d_3d_dataset(config, split, num_sequences):
 def get_test_2d_3d_dataset(config):
     from .face_2d_3d_test_dataset import Face2D3DTestDataset
 
-    dataset = Face2D3DTestDataset(config, fetch_length=75, load_mouth_mask=True)
+    dataset = Face2D3DTestDataset(config, 
+                                  fetch_length=75, 
+                                  load_ref_image=config['load_ref_image'],
+                                  load_mouth_mask=config['load_mouth_mask'])
 
     data_loader = DataLoader(
         dataset,
