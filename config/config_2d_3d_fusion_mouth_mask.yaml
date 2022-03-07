@@ -1,0 +1,62 @@
+checkpoint_dir: work_dir2/train_2d_3d_fusion_mouth_mask
+test_mode: False
+
+model_name: Face2D3DFusion
+
+pretrained_gan_checkpoint: null
+checkpoint: null
+
+## Trainer parameters
+check_val_every_n_epoch: 4
+max_epochs: 200
+
+lr: 1e-4
+optimizer: Adam
+adam_beta1_value: 0.9
+wd: 0
+
+lr_decay_step: 10
+lr_decay_rate: 0.2
+
+dataset:
+  data_root: ./data/id00002
+  batch_size: 4
+  number_workers: 4
+  load_ref_image: False
+  load_mouth_mask: True
+
+lambda_feat: 10.0
+
+use_3d: True
+
+PatchGANDiscriminator:
+  ndf: 64            # num of discrim filters in first conv layer
+  n_layers_D: 3      # number of layers in discriminator
+  num_D: 2           # number of patch scales in each discriminator
+  no_ganFeat: False  # do not match discriminator features
+  lambda_feat: ${lambda_feat}
+
+d_model: 128
+
+Face2D3DXFormer:
+  d_model: ${d_model}
+  nhead: 4
+  n_layer: 2
+  d_feed_forward: 256
+
+  use_3d: ${use_3d}
+  use_3d_mask: False # whether to use 3D mask like SAT
+  test_mode: ${test_mode}
+
+mm_fusion_decoder:
+  d_model: ${d_model}
+  n_head: 4
+  n_layer: 2
+  d_feed_forward: 1024
+
+face_3dmm_former:
+  d_input_3d_params: 64
+  d_model: ${d_model}
+  n_head: 4
+  n_layer: 1
+  d_feed_forward: 256
