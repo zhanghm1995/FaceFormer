@@ -15,7 +15,7 @@ optimizer: Adam
 adam_beta1_value: 0.9
 wd: 0
 
-lr_decay_step: 12
+lr_decay_step: 10
 lr_decay_rate: 0.2
 
 dataset:

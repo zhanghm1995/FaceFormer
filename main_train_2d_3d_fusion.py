@@ -56,8 +56,15 @@ if not config['test_mode']:
     train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
     print(f"The training dataloader length is {len(train_dataloader)}")
 
-    val_dataloader = get_2d_3d_dataset(config['dataset'], split='val', shuffle=True)
-    print(f"The validation dataloader length is {len(val_dataloader)}")
+    # val_dataloader = get_2d_3d_dataset(config['dataset'], split='val', shuffle=True)
+    # print(f"The validation dataloader length is {len(val_dataloader)}")
+
+    config['dataset']['audio_path'] = "data/audio_samples/slogan_english_16k.wav"
+    config['dataset']['video_path'] = "data/id00002/obama_weekly_029/face_image"
+    config['dataset']['face_3d_params_path'] = "data/id00002/obama_weekly_029/deep3dface.npz"
+    test_dataloader = get_test_2d_3d_dataset(config['dataset'])
+
+    print(f"The validation dataloader length is {len(test_dataloader)}")
 
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
                          max_epochs=config.max_epochs,
@@ -65,7 +72,7 @@ if not config['test_mode']:
     # trainer = pl.Trainer(gpus=4, default_root_dir=config['checkpoint_dir'], accelerator="gpu", strategy="ddp")
 
     ## Resume the training state
-    predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
+    predictions = trainer.fit(model, train_dataloader, test_dataloader, ckpt_path=config.checkpoint)
 else:
     print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
 

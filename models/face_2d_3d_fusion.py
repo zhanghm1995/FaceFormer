@@ -187,7 +187,7 @@ class Face2D3DFusion(pl.LightningModule):
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
-        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
+        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 200.0
 
         loss_dict['loss_2d_l1'] = loss_2d
         
