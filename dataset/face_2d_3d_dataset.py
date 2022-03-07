@@ -106,11 +106,11 @@ class Face2D3DDataset(FaceImageDataset):
             return None
 
         
-        data_dict['gt_face_image'] = gt_img_seq_tensor
-        data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor
+        data_dict['gt_face_image'] = gt_img_seq_tensor # (fetch_length, 3, H, W)
+        data_dict['gt_face_3d_params'] = gt_face_3d_params_tensor # (fetch_length, 64)
         
         data_dict['ref_face_3d_params'] = ref_face_3d_params_tensor
-        data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
+        data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32)) #(L, )
         data_dict['ref_raw_audio'] = torch.tensor(ref_audio_seq.astype(np.float32))
         return data_dict
 

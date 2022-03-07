@@ -35,6 +35,16 @@ def save_video(image, output_video_fname, image_size=512,
 
 
 def save_image_array_to_video(image_array, output_dir, name=None, fps=25, audio_array=None, audio_sample_rate=16000):
+    """Save the image array into video
+
+    Args:
+        image_array (np.ndarray|Tensor): (B, T, 3, H, W)
+        output_dir (_type_): _description_
+        name (_type_, optional): _description_. Defaults to None.
+        fps (int, optional): _description_. Defaults to 25.
+        audio_array (_type_, optional): _description_. Defaults to None.
+        audio_sample_rate (int, optional): _description_. Defaults to 16000.
+    """
     
     os.makedirs(output_dir, exist_ok=True)
 
