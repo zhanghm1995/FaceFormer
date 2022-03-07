@@ -7,7 +7,7 @@ pretrained_gan_checkpoint: null
 checkpoint: null
 
 ## Trainer parameters
-check_val_every_n_epoch: 4
+check_val_every_n_epoch: 2
 max_epochs: 200
 
 lr: 1e-4
@@ -20,8 +20,10 @@ lr_decay_rate: 0.2
 
 dataset:
   data_root: ./data/id00002
-  batch_size: 2
+  batch_size: 4
   number_workers: 4
+  load_ref_image: False
+  load_mouth_mask: False
 
 lambda_feat: 10.0
 
