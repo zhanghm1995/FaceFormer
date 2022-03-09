@@ -22,12 +22,16 @@ def parse_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_new.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
-    parser.add_argument('--checkpoint_dir', type=str, default='work_dir2/train_2d_3d_fusion_debug')
+    parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="debug")
     parser.add_argument('--checkpoint', type=str, default=None, help="the pretrained checkpoint path")
     parser.add_argument('--test_mode', action='store_true', help="whether is a test mode")
 
     args = parser.parse_args()
     config = OmegaConf.load(args.cfg)
+
+    if args.checkpoint_dir is None: # not specify the checkpoint_dir argument
+        args.checkpoint_dir = config.checkpoint_dir
+    
     config.update(vars(args)) # override the configuration using the value in args
 
     print(OmegaConf.to_yaml(config, resolve=True))

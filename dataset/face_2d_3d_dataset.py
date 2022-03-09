@@ -90,7 +90,7 @@ class Face2D3DDataset(FaceImageDataset):
                 choose_video, start_idx, need_mouth_masked_img=False)
             ## Lower half masked image
             masked_image = gt_img_seq_tensor.clone()
-            masked_image[:, :, masked_image.shape[3]//2:] = 0.5
+            masked_image[:, :, masked_image.shape[3]//2:] = 0.
             data_dict['input_image'] = masked_image
 
         ## Get the reference image and reference 3D face parameters
