@@ -1,4 +1,5 @@
-checkpoint_dir: work_dir2/train_2d_3d_fusion_new
+## Using dataset with static background
+checkpoint_dir: work_dir2/train_2d_3d_fusion_static_bg
 test_mode: False
 
 model_name: Face2D3DFusion
@@ -19,7 +20,7 @@ lr_decay_step: 10
 lr_decay_rate: 0.2
 
 dataset:
-  data_root: ./data/id00002
+  data_root: ./data/id00003
   batch_size: 2
   number_workers: 4
   load_ref_image: False
