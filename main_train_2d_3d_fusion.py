@@ -29,12 +29,13 @@ def parse_config():
     args = parser.parse_args()
     config = OmegaConf.load(args.cfg)
 
-    if args.checkpoint_dir is None: # not specify the checkpoint_dir argument
+    if args.checkpoint_dir is None: # use the yaml value if don't specify the checkpoint_dir argument
         args.checkpoint_dir = config.checkpoint_dir
     
     config.update(vars(args)) # override the configuration using the value in args
 
     print(OmegaConf.to_yaml(config, resolve=True))
+    
     try:
         config['commit_id'] = get_git_commit_id()
     except:
@@ -61,15 +62,17 @@ if not config['test_mode']:
     train_dataloader = get_2d_3d_dataset(config['dataset'], split="train")
     print(f"The training dataloader length is {len(train_dataloader)}")
 
-    # val_dataloader = get_2d_3d_dataset(config['dataset'], split='val', shuffle=True)
-    # print(f"The validation dataloader length is {len(val_dataloader)}")
+    val_dataloader = get_2d_3d_dataset(config['dataset'], split='val', shuffle=True)
+    print(f"The validation dataloader length is {len(val_dataloader)}")
 
-    config['dataset']['audio_path'] = "data/audio_samples/slogan_english_16k.wav"
-    config['dataset']['video_path'] = "data/id00002/obama_weekly_029/face_image"
-    config['dataset']['face_3d_params_path'] = "data/id00002/obama_weekly_029/deep3dface.npz"
-    test_dataloader = get_test_2d_3d_dataset(config['dataset'])
+    # config['dataset']['audio_path'] = "data/audio_samples/slogan_english_16k.wav"
+    # config['dataset']['video_path'] = "data/id00003/obama_weekly_022_clip_001/face_image"
+    # config['dataset']['face_3d_params_path'] = None
+    # config['dataset']['face_3d_params_path'] = "data/id00003/obama_weekly_022_clip_001/deep3dface.npz"
 
-    print(f"The validation dataloader length is {len(test_dataloader)}")
+    # test_dataloader = get_test_2d_3d_dataset(config['dataset'])
+
+    print(f"The validation dataloader length is {len(val_dataloader)}")
 
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
                          max_epochs=config.max_epochs,
@@ -77,7 +80,7 @@ if not config['test_mode']:
     # trainer = pl.Trainer(gpus=4, default_root_dir=config['checkpoint_dir'], accelerator="gpu", strategy="ddp")
 
     ## Resume the training state
-    predictions = trainer.fit(model, train_dataloader, test_dataloader, ckpt_path=config.checkpoint)
+    predictions = trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=config.checkpoint)
 else:
     print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
 
