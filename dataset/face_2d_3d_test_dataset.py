@@ -61,6 +61,7 @@ class Face2D3DTestDataset(Dataset):
         self.face_3d_params_path = config['face_3d_params_path']
 
         self.load_mouth_mask = kwargs.get("load_mouth_mask", True)
+        self.input_channel = kwargs.get("input_channel", 3)
 
         self.fetch_length = kwargs.get("fetch_length", 75)
 
@@ -135,7 +136,17 @@ class Face2D3DTestDataset(Dataset):
             image_seq_tensor, mouth_masked_img_tensor = self._read_image_sequence(
                 self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth],
                 need_mouth_masked_img=True)
-            data_dict['input_image'] = mouth_masked_img_tensor
+            
+            if self.input_channel == 3:
+                data_dict['input_image'] =  image_seq_tensor
+            elif self.input_channel == 6:
+                ## Lower half masked image
+                masked_image = image_seq_tensor.clone()
+                masked_image[:, :, masked_image.shape[3]//2:] = 0.
+
+                data_dict['input_image'] = torch.cat([masked_image, mouth_masked_img_tensor], dim=1)
+            else:
+                raise ValueError(f"{self.input_channel} hasn't been defined!")
         else:
             image_seq_tensor = self._read_image_sequence(
                 self.all_images_path[frame_start_dix: frame_start_dix + actual_frame_lenth])

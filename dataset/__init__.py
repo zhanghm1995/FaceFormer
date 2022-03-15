@@ -137,9 +137,10 @@ def get_test_2d_3d_dataset(config):
     from .face_2d_3d_test_dataset import Face2D3DTestDataset
 
     dataset = Face2D3DTestDataset(config, 
-                                  fetch_length=75, 
+                                  fetch_length=100, 
                                   load_ref_image=config['load_ref_image'],
-                                  load_mouth_mask=config['load_mouth_mask'])
+                                  load_mouth_mask=config['load_mouth_mask'],
+                                  input_channel=config['input_channel'])
 
     data_loader = DataLoader(
         dataset,

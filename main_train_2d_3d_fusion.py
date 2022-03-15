@@ -22,7 +22,7 @@ def parse_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_new.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
-    parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="debug")
+    parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="work_dir2/debug")
     parser.add_argument('--checkpoint', type=str, default=None, help="the pretrained checkpoint path")
     parser.add_argument('--test_mode', action='store_true', help="whether is a test mode")
 
@@ -84,8 +84,8 @@ if not config['test_mode']:
 else:
     print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
 
-    config['dataset']['audio_path'] = "data/audio_samples/slogan_english_16k.wav"
-    # config['dataset']['audio_path'] = "data/id00002/obama_weekly_029/obama_weekly_029.wav"
+    # config['dataset']['audio_path'] = "data/audio_samples/obama.wav"
+    config['dataset']['audio_path'] = "data/id00002/obama_weekly_029/obama_weekly_029.wav"
     config['dataset']['video_path'] = "data/id00002/obama_weekly_029/face_image"
     config['dataset']['face_3d_params_path'] = "data/id00002/obama_weekly_029/deep3dface.npz"
 
