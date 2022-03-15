@@ -10,7 +10,6 @@ Description: The main training entrance
 import argparse
 import pytorch_lightning as pl
 from dataset import get_2d_3d_dataset, get_random_fixed_2d_3d_dataset
-from models.face_2d_3d_fusion_gan import Face2D3DFusionGAN
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from utils.utils import get_git_commit_id
