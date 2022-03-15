@@ -27,10 +27,7 @@ def test_Face2D3DDataset():
     input_image = data['input_image']
     gt_face_image = data['gt_face_image']
 
-    
-
     save_image_array_to_video(input_image[None], "./temp", name="input")
-
     save_image_array_to_video(gt_face_image[None], "./temp", name="gt")
 
 def test_Face2D3DTestDataset():
@@ -51,7 +48,7 @@ def test_Face2D3DTestDataset():
     save_image_array_to_video(gt_face_image[None], "./temp", name="gt")
 
 if __name__ == "__main__":
-    pass
+    test_Face2D3DDataset()
 
 
 
