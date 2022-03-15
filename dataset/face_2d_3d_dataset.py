@@ -9,6 +9,7 @@ Description: Load 2D and 3D face dataset
 
 import os.path as osp
 import numpy as np
+from sklearn.neighbors import VALID_METRICS
 import torch
 from torch.utils.data import Dataset
 from scipy.io import loadmat, savemat
@@ -20,6 +21,7 @@ class Face2D3DDataset(FaceImageDataset):
         
         self.load_ref_image = kwargs.get("load_ref_image", True)
         self.load_mouth_mask = kwargs.get("load_mouth_mask", True)
+        self.input_channel = kwargs.get("input_channel", 3)
 
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):
@@ -84,7 +86,17 @@ class Face2D3DDataset(FaceImageDataset):
         if self.load_mouth_mask:
             gt_img_seq_tensor, gt_img_mouth_mask_tensor = self._read_image_sequence(
                 choose_video, start_idx, need_mouth_masked_img=True)
-            data_dict['input_image'] =  gt_img_mouth_mask_tensor
+            
+            if self.input_channel == 3:
+                data_dict['input_image'] =  gt_img_mouth_mask_tensor
+            elif self.input_channel == 6:
+                ## Lower half masked image
+                masked_image = gt_img_seq_tensor.clone()
+                masked_image[:, :, masked_image.shape[3]//2:] = 0.
+
+                data_dict['input_image'] = torch.cat([masked_image, gt_img_mouth_mask_tensor], dim=1)
+            else:
+                raise ValueError(f"{self.input_channel} hasn't been defined!")
         else:
             gt_img_seq_tensor = self._read_image_sequence(
                 choose_video, start_idx, need_mouth_masked_img=False)
