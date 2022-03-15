@@ -60,13 +60,24 @@ def get_random_fixed_2d_dataset(config, split, num_sequences):
 
 
 def get_2d_3d_dataset(config, split, shuffle=None):
+    """Get the dataset contains 2D image and 3D information
+
+    Args:
+        config (dict): config parameters
+        split (str): train or val
+        shuffle (bool, optional): Whether shuffle. Defaults to None.
+
+    Returns:
+        DataLoader: the torch dataloader
+    """
     from .face_2d_3d_dataset import Face2D3DDataset
 
     dataset = Face2D3DDataset(data_root=config['data_root'], 
                               split=split, 
                               fetch_length=75,
                               load_ref_image=config['load_ref_image'],
-                              load_mouth_mask=config['load_mouth_mask'])
+                              load_mouth_mask=config['load_mouth_mask'],
+                              input_channel=config['input_channel'])
     
     ## minibatch for debuging
     # sub_dataset = []
@@ -126,9 +137,10 @@ def get_test_2d_3d_dataset(config):
     from .face_2d_3d_test_dataset import Face2D3DTestDataset
 
     dataset = Face2D3DTestDataset(config, 
-                                  fetch_length=75, 
+                                  fetch_length=100, 
                                   load_ref_image=config['load_ref_image'],
-                                  load_mouth_mask=config['load_mouth_mask'])
+                                  load_mouth_mask=config['load_mouth_mask'],
+                                  input_channel=config['input_channel'])
 
     data_loader = DataLoader(
         dataset,

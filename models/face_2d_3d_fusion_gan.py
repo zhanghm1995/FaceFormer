@@ -29,7 +29,7 @@ from utils.loss import GANLoss, VGGLoss, compute_feature_matching_loss
 
 
 class Face2D3DFusionGAN(pl.LightningModule):
-    """Generate the face image in by fusion 2D-3D information"""
+    """Generate the face image in by fusion 2D-3D information with GAN loss"""
     
     def __init__(self, config, **kwargs) -> None:
         super().__init__()

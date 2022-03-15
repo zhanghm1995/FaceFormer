@@ -23,7 +23,7 @@ from .face_2d_3d_xfomer import Face2D3DXFormer
 from utils.save_data import save_image_array_to_video, save_video
 
 class Face2D3DFusion(pl.LightningModule):
-    """Generate the face image in by fusion 2D-3D information"""
+    """Generate the face image by fusion 2D-3D information"""
     
     def __init__(self, config, **kwargs) -> None:
         super().__init__()

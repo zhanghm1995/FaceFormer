@@ -1,4 +1,5 @@
-checkpoint_dir: work_dir2/train_2d_3d_fusion_new
+## Using the same reference image but with masked mouth
+checkpoint_dir: work_dir2/train_2d_3d_fusion_new_ref
 test_mode: False
 
 model_name: Face2D3DFusion
@@ -23,7 +24,8 @@ dataset:
   batch_size: 2
   number_workers: 4
   load_ref_image: False
-  load_mouth_mask: False
+  load_mouth_mask: True
+  input_channel: 6
 
 lambda_feat: 10.0
 
@@ -48,15 +50,5 @@ Face2D3DXFormer:
   use_3d_mask: False # whether to use 3D mask like SAT
   test_mode: ${test_mode}
 
-mm_fusion_decoder:
-  d_model: ${d_model}
-  n_head: 4
-  n_layer: 2
-  d_feed_forward: 1024
-
-face_3dmm_former:
-  d_input_3d_params: 64
-  d_model: ${d_model}
-  n_head: 4
-  n_layer: 1
-  d_feed_forward: 256
+  ImageTokenEncoder192:
+    input_channel: ${dataset.input_channel}
