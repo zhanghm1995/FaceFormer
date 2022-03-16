@@ -74,7 +74,7 @@ def get_2d_3d_dataset(config, split, shuffle=None):
 
     dataset = Face2D3DDataset(data_root=config['data_root'], 
                               split=split, 
-                              fetch_length=75,
+                              fetch_length=config['fetch_length'],
                               load_ref_image=config['load_ref_image'],
                               load_mouth_mask=config['load_mouth_mask'],
                               input_channel=config['input_channel'])

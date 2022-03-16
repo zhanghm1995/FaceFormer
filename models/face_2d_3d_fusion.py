@@ -191,7 +191,7 @@ class Face2D3DFusion(pl.LightningModule):
         tgt_face_image = data_dict['gt_face_image']
 
         if self.config.load_mouth_mask:
-            mouth_mask = data_dict['mouth_mask']
+            mouth_mask = data_dict['gt_img_mouth_mask']
             loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image, mask=mouth_mask, weight=2.0)
         else:
             loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image)
