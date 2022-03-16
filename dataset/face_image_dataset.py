@@ -147,15 +147,14 @@ class FaceImageDataset(Dataset):
 
             if need_mouth_masked_img:
                 img_path = osp.join(self.data_root, video_dir, "mouth_mask", f"{idx:06d}.png")
-                mouth_img = cv2.resize(cv2.imread(img_path, cv2.IMREAD_UNCHANGED), self.target_image_size)
-                mask2 = cv2.bitwise_not(mouth_img)
-                mouth_masked_img = cv2.bitwise_and(img, img, mask=mask2)
+                mouth_mask_img = cv2.resize(cv2.imread(img_path, cv2.IMREAD_UNCHANGED),
+                                            self.target_image_size)[..., None] # (H, W, 1)
 
                 img = self.image_transforms(img)
-                mouth_masked_img = self.image_transforms(mouth_masked_img)
+                mouth_mask_img = self.image_transforms(mouth_mask_img)
 
                 img_list.append(img)
-                mouth_masked_img_list.append(mouth_masked_img)
+                mouth_masked_img_list.append(mouth_mask_img)
             else:
                 img = self.image_transforms(img)
                 img_list.append(img)

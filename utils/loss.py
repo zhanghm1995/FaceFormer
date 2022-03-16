@@ -39,6 +39,31 @@ def cosine_loss(pred, target):
     return loss
 
 
+def pixel_wise_loss(pred, target, mask=None, weight=1.0):
+    """Calculate the Pixel-Wise loss and if given mask matrix, we
+       consider the mask region with different weight
+
+    Args:
+        pred (Tensor): (B, C, H, W)
+        target (Tensor): (B, C, H, W)
+        mask (Tensor, optional): (B, 1, H, W). Defaults to None.
+        weight (float, optional): _description_. Defaults to 1.0.
+
+    Returns:
+        _type_: loss value
+    """
+    l1_dist = F.l1_loss(pred, target, reduction="none")
+
+    if mask is None:
+        return torch.mean(l1_dist)
+    
+    loss1 = weight * l1_dist * mask
+    loss2 = l1_dist * (1 - mask)
+    
+    loss = torch.mean(loss1 + loss2)
+    return loss
+    
+
 class GANLoss(nn.Module):
     def __init__(self, target_real_label=1.0, target_fake_label=0.0):
         super(GANLoss, self).__init__()

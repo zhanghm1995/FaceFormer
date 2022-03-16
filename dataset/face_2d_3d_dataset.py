@@ -15,6 +15,7 @@ from torch.utils.data import Dataset
 from scipy.io import loadmat, savemat
 from .face_image_dataset import FaceImageDataset
 
+
 class Face2D3DDataset(FaceImageDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
         super(Face2D3DDataset, self).__init__(data_root, split, **kwargs)
@@ -88,7 +89,8 @@ class Face2D3DDataset(FaceImageDataset):
                 choose_video, start_idx, need_mouth_masked_img=True)
             
             if self.input_channel == 3:
-                data_dict['input_image'] =  gt_img_mouth_mask_tensor
+                data_dict['input_image'] =  gt_img_seq_tensor * (1 - gt_img_mouth_mask_tensor) # mouth masked face image
+                data_dict['gt_img_mouth_mask'] = gt_img_mouth_mask_tensor
             elif self.input_channel == 6:
                 ## Lower half masked image
                 masked_image = gt_img_seq_tensor.clone()

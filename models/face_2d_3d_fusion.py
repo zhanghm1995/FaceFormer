@@ -21,6 +21,8 @@ from .face_former_encoder import Wav2Vec2Encoder
 from .resnet_embedding import ResNetEmbedding
 from .face_2d_3d_xfomer import Face2D3DXFormer
 from utils.save_data import save_image_array_to_video, save_video
+from utils.loss import pixel_wise_loss
+
 
 class Face2D3DFusion(pl.LightningModule):
     """Generate the face image by fusion 2D-3D information"""
@@ -187,7 +189,14 @@ class Face2D3DFusion(pl.LightningModule):
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
-        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
+
+        if self.config.load_mouth_mask:
+            mouth_mask = data_dict['gt_img_mouth_mask']
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image, mask=mouth_mask, weight=2.0)
+        else:
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image)
+        
+        loss_2d *= 100.0
 
         loss_dict['loss_2d_l1'] = loss_2d
         

@@ -25,7 +25,10 @@ from .face_2d_3d_xfomer import Face2D3DXFormer
 from utils.save_data import save_image_array_to_video, save_video
 from .discriminators.img_gen_disc import Feature2Face_D as PatchGANDiscriminator
 from .face_2d_3d_fusion import Face2D3DFusion
-from utils.loss import GANLoss, VGGLoss, compute_feature_matching_loss
+from utils.loss import (GANLoss, 
+                        VGGLoss, 
+                        compute_feature_matching_loss, 
+                        pixel_wise_loss)
 
 
 class Face2D3DFusionGAN(pl.LightningModule):
@@ -63,62 +66,74 @@ class Face2D3DFusionGAN(pl.LightningModule):
         return ({"optimizer": optimizer_g, "lr_scheduler": scheduler_g},
                 {'optimizer': optimizer_d})
 
+    def forward(self, batch):
+        return self.generator(batch)
+
+    def generator_step(self, batch):
+        ## ============= Train the Generator ============== ##
+        ## 1) Forward the network
+        model_output = self(batch)
+
+        ## 2) Calculate the loss
+        loss_dict = self.compute_loss(batch, model_output)
+
+        total_loss = 0.0
+        for value in loss_dict.values():
+            total_loss += value
+
+        loss_3d = loss_dict['loss_s'] + loss_dict['lossg_e'] + loss_dict['lossg_em']
+
+        self.log('total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
+        self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
+
+        pred = model_output['face_2d_image']
+        gt = batch['gt_face_image']
+
+        ## Add GAN related loss
+        pred_real = self.discriminator(gt)
+        pred_fake = self.discriminator(pred)
+        loss_G_GAN = self.criterionGAN(pred_fake, True)
+
+        loss_vgg = self.criterionVGG(pred, gt) * self.config.lambda_feat # Perceptual loss
+        
+        loss_FM = compute_feature_matching_loss(pred_fake, pred_real, self.config['PatchGANDiscriminator'])
+        
+        total_loss += loss_G_GAN + loss_vgg + loss_FM
+
+        self.log("total_loss", total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('loss_G_GAN', loss_G_GAN, on_step=True, on_epoch=True, prog_bar=False)
+        self.log('loss_vgg', loss_vgg, on_step=True, on_epoch=True, prog_bar=False)
+        self.log('loss_FM', loss_FM, on_step=True, on_epoch=True, prog_bar=False)
+
+        return total_loss
+
+    def discriminator_step(self, batch):
+        ## ============= Train the Generator ============== ##
+        ## 1) Forward the network
+        pred_real = self.discriminator(batch['gt_face_image'])
+        pred_fake = self.discriminator(self(batch)['face_2d_image'].detach())
+
+        loss_D_real = self.criterionGAN(pred_real, True) * 2
+        loss_D_fake = self.criterionGAN(pred_fake, False)
+        
+        total_loss_D = (loss_D_real + loss_D_fake) * 0.5
+
+        self.log('total_loss_D', total_loss_D, on_step=True, on_epoch=True, prog_bar=False)
+        
+        return total_loss_D
+
     def training_step(self, batch, batch_idx, optimizer_idx):
         if optimizer_idx == 0:
-            ## ============= Train the Generator ============== ##
-            ## 1) Forward the network
-            model_output = self.generator(batch)
-
-            ## 2) Calculate the loss
-            loss_dict = self.compute_loss(batch, model_output)
-
-            total_loss = 0.0
-            for value in loss_dict.values():
-                total_loss += value
-
-            loss_3d = loss_dict['loss_s'] + loss_dict['lossg_e'] + loss_dict['lossg_em']
-
-            self.log('total_recon_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-            self.log('loss_s', loss_dict['loss_s'], on_step=True, on_epoch=True, prog_bar=False)
-            self.log('lossg_e', loss_dict['lossg_e'], on_step=True, on_epoch=True, prog_bar=False)
-            self.log('lossg_em', loss_dict['lossg_em'], on_step=True, on_epoch=True, prog_bar=False)
-            self.log('loss_3d', loss_3d, on_step=True, on_epoch=True, prog_bar=True)
-            self.log('loss_2d_l1', loss_dict['loss_2d_l1'], on_step=True, on_epoch=True, prog_bar=True)
-
-            g = model_output['face_2d_image']
-            gt = batch['gt_face_image']
-
-            ## Add GAN related loss
-            pred_real = self.discriminator(gt)
-            pred_fake = self.discriminator(g)
-            loss_G_GAN = self.criterionGAN(pred_fake, True)
-
-            loss_vgg = self.criterionVGG(g, gt) * self.config.lambda_feat # Perceptual loss
-            
-            loss_FM = compute_feature_matching_loss(pred_fake, pred_real, self.config['PatchGANDiscriminator'])
-            
-            total_loss += loss_G_GAN + loss_vgg + loss_FM
-
-            self.log("total_loss", total_loss, on_step=True, on_epoch=True, prog_bar=True)
-            self.log('loss_G_GAN', loss_G_GAN, on_step=True, on_epoch=True, prog_bar=False)
-            self.log('loss_vgg', loss_vgg, on_step=True, on_epoch=True, prog_bar=False)
-            self.log('loss_FM', loss_FM, on_step=True, on_epoch=True, prog_bar=False)
-
-            return total_loss
+            loss = self.generator_step(batch)
         
         if optimizer_idx == 1:
-            ## ============= Train the Generator ============== ##
-            ## 1) Forward the network
-            pred_real = self.discriminator(batch['gt_face_image'])
-            pred_fake = self.discriminator(self.generator(batch)['face_2d_image'].detach())
-
-            loss_D_real = self.criterionGAN(pred_real, True) * 2
-            loss_D_fake = self.criterionGAN(pred_fake, False)
+            loss = self.discriminator_step(batch)
             
-            total_loss_D = (loss_D_real + loss_D_fake) * 0.5
-
-            self.log('total_loss_D', total_loss_D, on_step=True, on_epoch=True, prog_bar=False)
-            return total_loss_D
+        return loss
     
     def validation_step(self, batch, batch_idx):
         ## 1) Forward the network
@@ -162,7 +177,14 @@ class Face2D3DFusionGAN(pl.LightningModule):
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
-        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
+
+        if self.config.load_mouth_mask:
+            mouth_mask = data_dict['mouth_mask']
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image, mask=mouth_mask, weight=2.0)
+        else:
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image)
+        
+        loss_2d *= 100.0
         
         loss_dict = {'loss_s': loss_s, 'lossg_e': lossg_e, 'lossg_em': lossg_em,
                      'loss_2d_l1': loss_2d}
