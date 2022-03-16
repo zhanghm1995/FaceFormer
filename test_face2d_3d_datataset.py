@@ -47,8 +47,20 @@ def test_Face2D3DTestDataset():
 
     save_image_array_to_video(gt_face_image[None], "./temp", name="gt")
 
+def test_Face2D3DDataLoader():
+    from dataset import get_2d_3d_dataset
+    from omegaconf import OmegaConf
+
+    config = OmegaConf.load("config/config_2d_3d_fusion_HDTF.yaml")
+
+    train_dataloader = get_2d_3d_dataset(config['dataset'], split="train", shuffle=True)
+
+    data = next(iter(train_dataloader))
+    print(type(data))
+
+
 if __name__ == "__main__":
-    test_Face2D3DDataset()
+    test_Face2D3DDataLoader()
 
 
 
