@@ -25,7 +25,10 @@ from .face_2d_3d_xfomer import Face2D3DXFormer
 from utils.save_data import save_image_array_to_video, save_video
 from .discriminators.img_gen_disc import Feature2Face_D as PatchGANDiscriminator
 from .face_2d_3d_fusion import Face2D3DFusion
-from utils.loss import GANLoss, VGGLoss, compute_feature_matching_loss
+from utils.loss import (GANLoss, 
+                        VGGLoss, 
+                        compute_feature_matching_loss, 
+                        pixel_wise_loss)
 
 
 class Face2D3DFusionGAN(pl.LightningModule):
@@ -174,7 +177,14 @@ class Face2D3DFusionGAN(pl.LightningModule):
         ## 2D loss
         pred_face_image = model_output['face_2d_image']
         tgt_face_image = data_dict['gt_face_image']
-        loss_2d = F.l1_loss(pred_face_image, tgt_face_image) * 100.0
+
+        if self.config.load_mouth_mask:
+            mouth_mask = data_dict['mouth_mask']
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image, mask=mouth_mask, weight=2.0)
+        else:
+            loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image)
+        
+        loss_2d *= 100.0
         
         loss_dict = {'loss_s': loss_s, 'lossg_e': lossg_e, 'lossg_em': lossg_em,
                      'loss_2d_l1': loss_2d}
