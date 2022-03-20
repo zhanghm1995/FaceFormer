@@ -18,7 +18,7 @@ import tempfile
 import numpy as np
 from subprocess import call
 import argparse
-os.environ['PYOPENGL_PLATFORM'] = 'osmesa' #egl
+# os.environ['PYOPENGL_PLATFORM'] = 'osmesa' #egl
 import pyrender
 import trimesh
 from psbody.mesh import Mesh

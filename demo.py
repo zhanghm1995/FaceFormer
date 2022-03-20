@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import cv2
 import tempfile
 from subprocess import call
-os.environ['PYOPENGL_PLATFORM'] = 'osmesa' # egl
+# os.environ['PYOPENGL_PLATFORM'] = 'osmesa' # egl
 import pyrender
 from psbody.mesh import Mesh
 import trimesh
