@@ -1,0 +1,12 @@
+
+dataset:
+  data_root: ./data/HDTF_preprocessed
+  batch_size: 2
+  fetch_length: 40
+  number_workers: 6
+
+Face3DMMFormer:
+  dataset: vocaset
+  feature_dim: 64
+  period: 30
+  vertice_dim: 64
