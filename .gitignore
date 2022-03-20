@@ -1,3 +1,7 @@
+# Our ignored
+vocaset/vertices_npy
+vocaset/wav
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .DS_Store
