@@ -32,7 +32,7 @@ class Face3DMMFormerModule(pl.LightningModule):
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
     def training_step(self, batch, batch_idx):
-        model_output = self.model(batch)
+        model_output = self.model(batch, teacher_forcing=False)
         
         ## Calcuate the loss
         loss_dict = self.compute_loss(batch, model_output)
@@ -44,7 +44,16 @@ class Face3DMMFormerModule(pl.LightningModule):
         return total_loss
         
     def validation_step(self, batch, batch_idx):
-        pass
+        model_output = self.model(batch, teacher_forcing=False)
+        
+        ## Calcuate the loss
+        loss_dict = self.compute_loss(batch, model_output)
+        total_loss = 0.0
+        for value in loss_dict.values():
+            total_loss += value
+        
+        self.log('val/total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        return total_loss
 
     def compute_loss(self, data_dict, model_output):
         loss_dict = {}

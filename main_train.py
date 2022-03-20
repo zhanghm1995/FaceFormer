@@ -21,7 +21,7 @@ from models import get_model
 
 def parse_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='./config/config_2d_3d_fusion_new.yaml', help='the config file path')
+    parser.add_argument('--cfg', type=str, default='./config/face_3dmm_config.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
     parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="work_dir2/debug")
     parser.add_argument('--checkpoint', type=str, default=None, help="the pretrained checkpoint path")

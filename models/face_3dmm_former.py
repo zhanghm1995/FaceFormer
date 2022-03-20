@@ -42,7 +42,7 @@ def init_biased_mask(n_head, max_seq_len, period):
 
 
 # Alignment Bias
-def enc_dec_mask(device, dataset, T, S):
+def enc_dec_mask(dataset, T, S):
     mask = torch.ones(T, S)
     if dataset == "BIWI":
         for i in range(T):
@@ -50,7 +50,7 @@ def enc_dec_mask(device, dataset, T, S):
     elif dataset == "vocaset":
         for i in range(T):
             mask[i, i] = 0
-    return (mask==1).to(device=device)
+    return (mask==1)
 
 
 # Periodic Positional Encoding
@@ -102,8 +102,7 @@ class Face3DMMFormer(nn.Module):
         self.vertice_map_r = nn.Linear(args.feature_dim, args.vertice_dim)
 
         # style embedding
-        self.obj_vector = nn.Linear(len(args.train_subjects.split()), args.feature_dim, bias=False)
-        self.device = args.device
+        self.obj_vector = nn.Linear(8, args.feature_dim, bias=False)
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
 
@@ -114,11 +113,13 @@ class Face3DMMFormer(nn.Module):
         audio = data_dict['raw_audio']
         face_3d_params = data_dict['gt_face_3d_params'] # (B, S, C)
 
+        device = audio.device
+
         batch_size, seq_len, _ = face_3d_params.shape
-        one_hot = torch.zeros((batch_size, seq_len)).type(face_3d_params)
+        one_hot = torch.zeros((batch_size, 8)).to(face_3d_params)
         one_hot[:, 0] = 1.0
 
-        template = template.unsqueeze(1) # (1,1, V*3)
+        # template = template.unsqueeze(1) # (1,1, V*3)
         obj_embedding = self.obj_vector(one_hot)#(1, feature_dim)
         frame_num = face_3d_params.shape[1]
         hidden_states = self.audio_encoder(audio, frame_num=frame_num).last_hidden_state
@@ -132,8 +133,8 @@ class Face3DMMFormer(nn.Module):
             vertice_input = self.vertice_map(vertice_input)
             vertice_input = vertice_input + style_emb
             vertice_input = self.PPE(vertice_input)
-            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-            memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+            memory_mask = enc_dec_mask(self.dataset, vertice_input.shape[1], hidden_states.shape[1]).to(device=device)
             vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
         else:
@@ -144,18 +145,15 @@ class Face3DMMFormer(nn.Module):
                     vertice_input = self.PPE(style_emb)
                 else:
                     vertice_input = self.PPE(vertice_emb)
-                tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-                memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+                tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+                memory_mask = enc_dec_mask(self.dataset, vertice_input.shape[1], hidden_states.shape[1]).to(device=device)
                 vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
                 vertice_out = self.vertice_map_r(vertice_out)
                 new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
                 new_output = new_output + style_emb
                 vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
-        vertice_out = vertice_out + template
-        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3)
-        loss = torch.mean(loss)
-        return loss
+        return {'face_3d_params': vertice_out}
 
     def predict(self, audio, template, one_hot):
         template = template.unsqueeze(1) # (1,1, V*3)

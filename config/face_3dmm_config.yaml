@@ -1,7 +1,21 @@
+checkpoint_dir: work_dir/debug
+test_mode: False
+
+model_name: Face3DMMFormer
+
+checkpoint: null
+
+max_epochs: 200
+check_val_every_n_epoch: 1
+
+lr: 0.0001
+wd: 0.0
+lr_decay_step: 5
+lr_decay_rate: 0.5
 
 dataset:
   data_root: ./data/HDTF_preprocessed
-  batch_size: 2
+  batch_size: 1
   fetch_length: 40
   number_workers: 6
 
