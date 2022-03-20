@@ -114,6 +114,10 @@ class Face3DMMFormer(nn.Module):
         audio = data_dict['raw_audio']
         face_3d_params = data_dict['gt_face_3d_params'] # (B, S, C)
 
+        batch_size, seq_len, _ = face_3d_params.shape
+        one_hot = torch.zeros((batch_size, seq_len)).type(face_3d_params)
+        one_hot[:, 0] = 1.0
+
         template = template.unsqueeze(1) # (1,1, V*3)
         obj_embedding = self.obj_vector(one_hot)#(1, feature_dim)
         frame_num = face_3d_params.shape[1]
@@ -123,7 +127,7 @@ class Face3DMMFormer(nn.Module):
         if teacher_forcing:
             vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
             style_emb = vertice_emb  
-            vertice_input = torch.cat((template, vertice[:,:-1]), 1) # shift one position
+            vertice_input = torch.cat((template, face_3d_params[:,:-1]), 1) # shift one position
             vertice_input = vertice_input - template
             vertice_input = self.vertice_map(vertice_input)
             vertice_input = vertice_input + style_emb
