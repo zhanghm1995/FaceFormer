@@ -1,6 +1,13 @@
 # Our ignored
 vocaset/vertices_npy
-vocaset/wav
+vocaset/wav*
+vocaset/save
+vocaset/*.npy
+vocaset/*.pkl
+vocaset/*.zip
+vocaset/*.pth
+vocaset/templates
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
