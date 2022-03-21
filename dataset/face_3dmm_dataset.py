@@ -12,12 +12,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from scipy.io import loadmat, savemat
+from transformers import Wav2Vec2Processor
 from .base_video_dataset import BaseVideoDataset
 
 
 class Face3DMMDataset(BaseVideoDataset):
     def __init__(self, data_root, split, **kwargs) -> None:
         super(Face3DMMDataset, self).__init__(data_root, split, **kwargs)
+        self.audio_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
         
     def _get_mat_vector(self, face_params_dict,
                         keys_list=['id', 'exp', 'tex', 'angle', 'gamma', 'trans']):
@@ -73,6 +75,8 @@ class Face3DMMDataset(BaseVideoDataset):
         audio_seq = self._slice_raw_audio(choose_video, start_idx) # (M, )
         if audio_seq is None:
             return None
+        
+        audio_seq = np.squeeze(self.audio_processor(audio_seq, sampling_rate=16000).input_values)
 
         ## Get the GT image and GT 3D face parameters
         gt_face_3d_params_tensor = self._get_face_3d_params(choose_video, start_idx)

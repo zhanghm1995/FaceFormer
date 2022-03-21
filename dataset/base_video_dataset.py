@@ -122,7 +122,7 @@ class BaseVideoDataset(Dataset):
 
         audio_idx_diff = audio_end_idx - audio_start_idx
         
-        whole_audio_data = librosa.core.load(audio_path, sr=self.audio_sample_rate)[0]
+        whole_audio_data, _ = librosa.load(audio_path, sr=self.audio_sample_rate)
         fetch_audio_data = whole_audio_data[audio_start_idx:audio_end_idx]
 
         if len(fetch_audio_data) != audio_idx_diff:
