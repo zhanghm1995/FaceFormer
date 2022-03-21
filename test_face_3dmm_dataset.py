@@ -23,6 +23,22 @@ def test_face_3dmm_dataset():
         print(key)
         print(value.shape)
 
+def test_face_3dmm_dataset_loop():
+    config = EasyDict(data_root="./data/HDTF_preprocessed", fetch_length=75, batch_size=1, number_workers=4)
+
+    train_dataloader = get_3dmm_dataset(config, split="mini_train", shuffle=False)
+    print(len(train_dataloader))
+
+    # dataset = next(iter(train_dataloader))
+
+    for i, dataset in enumerate(train_dataloader):
+        print(i)
+        if i == 35:
+            print("=========")
+        for key, value in dataset.items():
+            print(key)
+            print(value.shape)
+
 
 if __name__ == "__main__":
-    test_face_3dmm_dataset()
+    test_face_3dmm_dataset_loop()

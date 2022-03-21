@@ -21,11 +21,17 @@ def get_3dmm_dataset(config, split, shuffle=None):
     dataset = Face3DMMDataset(data_root=config['data_root'], 
                               split=split, 
                               fetch_length=config['fetch_length'])
+
+    data = dataset[36]
+    data = dataset[37]
+    
     
     ## minibatch for debuging
     # sub_dataset = []
     # for idx in range(8):
-    #     sub_dataset.append(dataset[idx])
+    #     sub_dataset.append(data)
+    # for idx in range(8):
+    #     sub_dataset.append(dataset[36])
 
     data_loader = DataLoader(
         dataset,

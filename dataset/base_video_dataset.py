@@ -31,8 +31,8 @@ import torch
 
 def get_all_valid_indices(total_length, fetch_length, stride) -> List:
     idx_list = list(range(0, total_length - fetch_length, stride))
-    last_idx = total_length - fetch_length
-    idx_list += [last_idx]
+    # last_idx = total_length - fetch_length
+    # idx_list += [last_idx]
     return idx_list
 
 

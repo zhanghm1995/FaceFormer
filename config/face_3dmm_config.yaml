@@ -1,4 +1,4 @@
-checkpoint_dir: work_dir/train_face_3dmm
+checkpoint_dir: work_dir/train_face_3dmm_multi_batch
 test_mode: False
 
 model_name: Face3DMMFormer
@@ -15,7 +15,7 @@ lr_decay_rate: 0.5
 
 dataset:
   data_root: ./data/HDTF_preprocessed
-  batch_size: 1
+  batch_size: 8
   fetch_length: 100
   number_workers: 6
 
