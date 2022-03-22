@@ -38,7 +38,7 @@ def get_3dmm_dataset(config, split, shuffle=None):
     data_loader = DataLoader(
         dataset,
         batch_size=config['batch_size'],
-        shuffle=(split=="train") if shuffle is None else shuffle,
+        shuffle=("train" in split) if shuffle is None else shuffle,
         num_workers=config['number_workers'],
         # pin_memory=True,
         pin_memory=False,

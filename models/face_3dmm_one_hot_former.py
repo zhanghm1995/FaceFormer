@@ -149,9 +149,11 @@ class Face3DMMOneHotFormer(nn.Module):
         return loss
 
     def predict(self, audio, template, one_hot):
+        self.device = audio.device
+
         template = template.unsqueeze(1) # (1,1, V*3)
         obj_embedding = self.obj_vector(one_hot)
-        hidden_states = self.audio_encoder(audio, self.dataset).last_hidden_state
+        hidden_states = self.audio_encoder(audio, self.dataset, output_fps=25).last_hidden_state
         if self.dataset == "BIWI":
             frame_num = hidden_states.shape[1]//2
         elif self.dataset == "vocaset":

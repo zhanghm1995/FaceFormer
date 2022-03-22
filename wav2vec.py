@@ -80,7 +80,8 @@ class Wav2Vec2Model(Wav2Vec2Model):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
-        frame_num=None
+        frame_num=None,
+        output_fps=30
     ):
         self.config.output_attentions = True
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -99,7 +100,7 @@ class Wav2Vec2Model(Wav2Vec2Model):
             if frame_num and hidden_states.shape[1]>frame_num*2:
                 hidden_states = hidden_states[:, :frame_num*2]
         elif dataset == "vocaset":
-            hidden_states = linear_interpolation(hidden_states, 50, 30,output_len=frame_num)
+            hidden_states = linear_interpolation(hidden_states, 50, output_fps, output_len=frame_num)
      
         if attention_mask is not None:
             output_lengths = self._get_feat_extract_output_lengths(attention_mask.sum(-1))

@@ -12,6 +12,7 @@ import numpy as np
 import os
 import os.path as osp
 import torch.nn as nn
+from scipy.io import wavfile
 from torch.nn import functional as F 
 import pytorch_lightning as pl
 from .face_3dmm_one_hot_former import Face3DMMOneHotFormer
@@ -79,17 +80,20 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         return loss_dict
 
     def test_step(self, batch, batch_idx):
-        model_output = self.model.predict(batch)
+        audio = batch['raw_audio']
+        template = torch.zeros((audio.shape[0], 64)).to(audio)
+        vertice = batch['gt_face_3d_params']
+        one_hot = batch['one_hot']
         
-        log_dir = osp.join(self.logger.log_dir, "pred")
-        os.makedirs(log_dir, exist_ok=True)
+        model_output = self.model.predict(audio, template, one_hot)
+        model_output = model_output.squeeze().detach().cpu().numpy() # (seq_len, 64)
         
-        ## Save prediction to files
-        pred = model_output['face_3d_params'].cpu().numpy() # (B, S, 64)
-        for batch in range(pred.shape[0]):
-            seq_pred = pred[batch]
-            file_path = osp.join(log_dir, f"{batch_idx:03d}-{batch}.npy")
-            np.save(file_path, seq_pred)
+        ## Save the results
+        save_dir = osp.join(self.logger.log_dir, "vis")
+        os.makedirs(save_dir, exist_ok=True)
+        np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
+
+        ## Save audio
+        audio_data = audio[0].cpu().numpy()
+        wavfile.write(osp.join(save_dir, f"{batch_idx:03d}.wav"), 16000, audio_data)
             
-            
-        return model_output
