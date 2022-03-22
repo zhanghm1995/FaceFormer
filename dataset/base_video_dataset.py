@@ -44,15 +44,16 @@ class BaseVideoDataset(Dataset):
     Args:
         Dataset (_type_): _description_
     """
-    def __init__(self, data_root, split, **kwargs) -> None:
+    def __init__(self, split, **kwargs) -> None:
         super().__init__()
-
-        self.data_root = data_root
         
-        flag = osp.exists(data_root)
-        assert flag, f"{data_root} is not exist, please check!"
 
-        self.all_videos_dir = open(osp.join(data_root, f'{split}.txt')).read().splitlines()
+        self.data_root = kwargs['data_root']
+        
+        flag = osp.exists(self.data_root)
+        assert flag, f"{self.data_root} is not exist, please check!"
+
+        self.all_videos_dir = open(osp.join(self.data_root, f'{split}.txt')).read().splitlines()
 
         self.fetch_length = kwargs.get("fetch_length", 75)
         self.fetch_stride = kwargs.get("fetch_stride", 50)
@@ -69,7 +70,9 @@ class BaseVideoDataset(Dataset):
 
         total_length = 0
         for video_dir in self.all_videos_dir:
-            all_images_path = sorted(glob(osp.join(self.data_root, video_dir, "face_image", "*.jpg")))
+            # all_images_path = sorted(glob(osp.join(self.data_root, video_dir, "face_image", "*.jpg")))
+            image_dir = osp.join(self.data_root, video_dir, "face_image")
+            all_images_path = sorted([file.path for file in os.scandir(image_dir) if file.name.endswith(".jpg")])
             num_frames = len(all_images_path)
             self.total_frames_list.append(num_frames)
 
@@ -198,15 +201,4 @@ class BaseVideoDataset(Dataset):
         data_dict['ref_face_image'] = ref_img_seq_tensor
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32))
         return data_dict
-
-
-if __name__ == "__main__":
-    data_root = "/home/haimingzhang/Research/Face/FACIAL/video_preprocessed/id00001"
-    split = "train"
-    dataset = FaceImageDataset(data_root, split)
-    print(len(dataset))
-
-    data = dataset[180]
-    print(data.shape)
-
 

@@ -16,15 +16,17 @@ def get_3dmm_dataset(config, split, shuffle=None):
     Returns:
         DataLoader: the torch dataloader
     """
-    from .face_3dmm_dataset import Face3DMMDataset
-
-    dataset = Face3DMMDataset(data_root=config['data_root'], 
-                              split=split, 
-                              fetch_length=config['fetch_length'])
-
-    data = dataset[36]
-    data = dataset[37]
-    
+    if config.dataset_name == "Face3DMMDataset":
+        from .face_3dmm_dataset import Face3DMMDataset
+        dataset = Face3DMMDataset(data_root=config['data_root'], 
+                                split=split, 
+                                fetch_length=config['fetch_length'])
+    elif config.dataset_name == "Face3DMMOneHotDataset":
+        from .face_3dmm_one_hot_dataset import Face3DMMOneHotDataset
+        dataset = Face3DMMOneHotDataset(split=split, **config)
+    else:
+        dataset_name = config.dataset_name
+        raise ValueError(f"{dataset_name} dataset has not been defined")
     
     ## minibatch for debuging
     # sub_dataset = []

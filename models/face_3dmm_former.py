@@ -156,18 +156,21 @@ class Face3DMMFormer(nn.Module):
 
         return {'face_3d_params': vertice_out}
 
-    def predict(self, audio, template, one_hot):
-        template = template.unsqueeze(1) # (1,1, V*3)
-        obj_embedding = self.obj_vector(one_hot)
+    def predict(self, data_dict):
+        audio = data_dict['raw_audio']
         hidden_states = self.audio_encoder(audio, self.dataset).last_hidden_state
-        if self.dataset == "BIWI":
-            frame_num = hidden_states.shape[1]//2
-        elif self.dataset == "vocaset":
-            frame_num = hidden_states.shape[1]
+        
+        frame_num = hidden_states.shape[1]
         hidden_states = self.audio_feature_map(hidden_states)
 
+        ## Create one-hot input
+        batch_size = audio.shape[0]
+        one_hot = torch.zeros((batch_size, 8)).to(audio)
+        one_hot[:, 0] = 1.0
+        obj_embedding = self.obj_vector(one_hot)
+
         for i in range(frame_num):
-            if i==0:
+            if i == 0:
                 vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
                 style_emb = vertice_emb
                 vertice_input = self.PPE(style_emb)
@@ -178,9 +181,9 @@ class Face3DMMFormer(nn.Module):
             memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
             vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
+            
             new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
             new_output = new_output + style_emb
             vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
-        vertice_out = vertice_out + template
-        return vertice_out
+        return {'face_3d_params': vertice_out}

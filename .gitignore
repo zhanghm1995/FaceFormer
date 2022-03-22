@@ -7,6 +7,12 @@ vocaset/*.pkl
 vocaset/*.zip
 vocaset/*.pth
 vocaset/templates
+vocaset/output
+vocaset/readme.pdf
+vocaset/result
+demo/output
+demo/result
+work_dir
 
 
 # Byte-compiled / optimized / DLL files

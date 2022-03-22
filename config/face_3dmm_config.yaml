@@ -14,9 +14,11 @@ lr_decay_step: 5
 lr_decay_rate: 0.5
 
 dataset:
+  dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
-  batch_size: 8
+  batch_size: 1
   fetch_length: 100
+  fetch_stride: 100
   number_workers: 6
 
 Face3DMMFormer:

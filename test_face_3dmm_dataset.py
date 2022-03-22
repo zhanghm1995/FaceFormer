@@ -7,6 +7,7 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: Test Face3DMMDataset
 '''
 
+from omegaconf import OmegaConf
 from easydict import EasyDict
 from dataset import get_3dmm_dataset
 
@@ -24,12 +25,12 @@ def test_face_3dmm_dataset():
         print(value.shape)
 
 def test_face_3dmm_dataset_loop():
-    config = EasyDict(data_root="./data/HDTF_preprocessed", fetch_length=75, batch_size=1, number_workers=4)
+    config = OmegaConf.load("./config/face_3dmm_config.yaml")
 
-    train_dataloader = get_3dmm_dataset(config, split="mini_train", shuffle=False)
+    train_dataloader = get_3dmm_dataset(config['dataset'], split="voca_train", shuffle=False)
     print(len(train_dataloader))
 
-    # dataset = next(iter(train_dataloader))
+    dataset = next(iter(train_dataloader))
 
     for i, dataset in enumerate(train_dataloader):
         print(i)

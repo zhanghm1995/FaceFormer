@@ -8,6 +8,9 @@ Description: The Pytorch-Lightning Face3DMMFormer module
 '''
 
 import torch
+import numpy as np
+import os
+import os.path as osp
 from torch.nn import functional as F 
 import pytorch_lightning as pl
 from .face_3dmm_former import Face3DMMFormer
@@ -67,3 +70,18 @@ class Face3DMMFormerModule(pl.LightningModule):
         loss_dict['loss_3dmm'] = loss_3dmm
         return loss_dict
 
+    def test_step(self, batch, batch_idx):
+        model_output = self.model.predict(batch)
+        
+        log_dir = osp.join(self.logger.log_dir, "pred")
+        os.makedirs(log_dir, exist_ok=True)
+        
+        ## Save prediction to files
+        pred = model_output['face_3d_params'].cpu().numpy() # (B, S, 64)
+        for batch in range(pred.shape[0]):
+            seq_pred = pred[batch]
+            file_path = osp.join(log_dir, f"{batch_idx:03d}-{batch}.npy")
+            np.save(file_path, seq_pred)
+            
+            
+        return model_output
