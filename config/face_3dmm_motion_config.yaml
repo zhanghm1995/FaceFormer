@@ -1,5 +1,5 @@
 ## Refer to the FaceFormer to predict the vertex motion information
-checkpoint_dir: work_dir/train_face_3dmm_one_person
+checkpoint_dir: work_dir/train_face_3dmm_vertex
 test_mode: False
 
 model_name: Face3DMMOneHotFormer
@@ -11,7 +11,7 @@ check_val_every_n_epoch: 1
 
 lr: 0.0001
 wd: 0.0
-lr_decay_step: 5
+lr_decay_step: 10
 lr_decay_rate: 0.5
 
 dataset:

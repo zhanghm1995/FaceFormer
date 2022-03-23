@@ -43,8 +43,8 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         audio = batch['raw_audio']
-        template = torch.zeros((audio.shape[0], 64)).to(audio)
-        vertice = batch['gt_face_3d_params']
+        template = batch['template']
+        vertice = batch['face_vertex']
         one_hot = batch['one_hot']
 
         loss = self.model(
@@ -66,18 +66,6 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
     #     ## Calcuate the loss
     #     self.log('val/total_loss', loss, on_epoch=True, prog_bar=True)
     #     return loss
-
-    def compute_loss(self, data_dict, model_output):
-        loss_dict = {}
-        
-        ## 3D loss
-        pred_params = model_output['face_3d_params']
-        tgt_params = data_dict['gt_face_3d_params']
-
-        loss_3dmm = 20 * F.smooth_l1_loss(pred_params[:, :, :], tgt_params[:, :, :])
-
-        loss_dict['loss_3dmm'] = loss_3dmm
-        return loss_dict
 
     def test_step(self, batch, batch_idx):
         audio = batch['raw_audio']
