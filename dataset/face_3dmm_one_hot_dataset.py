@@ -33,7 +33,7 @@ class BFMModel(object):
             exp_coeff (np.ndarray): (1, 64)
 
         Returns:
-            np.ndarray: (N, 3)
+            np.ndarray: (B, 3*N)
         """
         if id_coeff is None:
             id_coeff = np.zeros((1, 80)).astype(self.id_base.dtype)
@@ -135,7 +135,7 @@ class Face3DMMOneHotDataset(BaseVideoDataset):
         data_dict['raw_audio'] = torch.tensor(audio_seq.astype(np.float32)) #(L, )
         data_dict['one_hot'] = torch.FloatTensor(one_hot)
         data_dict['template'] = torch.FloatTensor(template_face.reshape((-1))) # (N,)
-        data_dict['face_vertex'] = torch.FloatTensor(gt_face_3d_vertex.reshape((1, self.fetch_length, -1)))
+        data_dict['face_vertex'] = torch.FloatTensor(gt_face_3d_vertex)
         return data_dict
 
 
