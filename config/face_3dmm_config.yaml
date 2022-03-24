@@ -16,7 +16,7 @@ lr_decay_rate: 0.5
 dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
-  batch_size: 1
+  batch_size: 4
   fetch_length: 100
   fetch_stride: 100
   number_workers: 6

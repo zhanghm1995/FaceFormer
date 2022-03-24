@@ -27,18 +27,19 @@ def test_face_3dmm_dataset():
 def test_face_3dmm_dataset_loop():
     config = OmegaConf.load("./config/face_3dmm_config.yaml")
 
-    train_dataloader = get_3dmm_dataset(config['dataset'], split="voca_train", shuffle=False)
+    train_dataloader = get_3dmm_dataset(config['dataset'], split="voca_train", shuffle=True)
     print(len(train_dataloader))
 
     dataset = next(iter(train_dataloader))
 
-    for i, dataset in enumerate(train_dataloader):
-        print(i)
-        if i == 35:
-            print("=========")
-        for key, value in dataset.items():
-            print(key)
-            print(value.shape)
+    print(dataset["video_name"])
+    # for i, dataset in enumerate(train_dataloader):
+    #     print(i)
+    #     if i == 35:
+    #         print("=========")
+    #     for key, value in dataset.items():
+    #         print(key)
+    #         print(value.shape)
 
 
 if __name__ == "__main__":

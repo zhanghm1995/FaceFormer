@@ -82,7 +82,7 @@ if not config['test_mode']:
 else:
     print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
 
-    test_dataloader = get_3dmm_dataset(config['dataset'], split="voca_train", shuffle=False)
+    test_dataloader = get_3dmm_dataset(config['dataset'], split="voca_test", shuffle=False)
     print(f"The testing dataloader length is {len(test_dataloader)}")
     
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'])

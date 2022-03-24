@@ -70,10 +70,12 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
     #     return loss
 
     def test_step(self, batch, batch_idx):
+        ## We do testing like official FaceFormer to conditioned on different one_hot
         audio = batch['raw_audio']
         template = batch['template']
         vertice = batch['face_vertex']
         one_hot = batch['one_hot']
+        video_name = batch['video_name'][0]
         
         model_output = self.model.predict(audio, template, one_hot)
         model_output = model_output.squeeze().detach().cpu().numpy() # (seq_len, 64)
@@ -82,9 +84,9 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         save_dir = osp.join(self.logger.log_dir, "vis")
         os.makedirs(save_dir, exist_ok=True)
         # np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
-        np.save(osp.join(save_dir, f"{batch_idx:03d}.npy"), model_output) # save face vertex
+        np.save(osp.join(save_dir, f"{video_name}_{batch_idx:03d}.npy"), model_output) # save face vertex
 
         ## Save audio
         audio_data = audio[0].cpu().numpy()
-        wavfile.write(osp.join(save_dir, f"{batch_idx:03d}.wav"), 16000, audio_data)
+        wavfile.write(osp.join(save_dir, f"{video_name}_{batch_idx:03d}.wav"), 16000, audio_data)
             

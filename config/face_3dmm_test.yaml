@@ -1,5 +1,5 @@
 ## Refer to the FaceFormer to predict the vertex motion information
-checkpoint_dir: work_dir/train_face_3dmm_vertex_add_model_param
+checkpoint_dir: work_dir/train_face_3dmm_vertex_mouth_mask
 test_mode: False
 
 model_name: Face3DMMOneHotFormer
@@ -18,8 +18,8 @@ dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
-  fetch_length: 100
-  fetch_stride: 100
+  fetch_length: 250
+  fetch_stride: 250
   number_workers: 6
 
 Face3DMMFormer:
@@ -27,4 +27,4 @@ Face3DMMFormer:
   feature_dim: 1024
   period: 25
   vertice_dim: 107127
-  use_mouth_mask: False
+  use_mouth_mask: True
