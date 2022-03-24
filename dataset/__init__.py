@@ -45,3 +45,33 @@ def get_3dmm_dataset(config, split, shuffle=None):
         collate_fn=collate_fn
     )
     return data_loader
+
+
+def get_dataset(config, split, shuffle=None):
+    """Get the dataset contains 2D image and 3D information
+
+    Args:
+        config (dict): config parameters
+        split (str): train or val
+        shuffle (bool, optional): Whether shuffle. Defaults to None.
+
+    Returns:
+        DataLoader: the torch dataloader
+    """
+    if config.dataset_name == "Face2D3DDataset":
+        from .face_2d_3d_dataset import Face2D3DDataset
+        dataset = Face2D3DDataset(split=split, **config)
+    else:
+        dataset_name = config.dataset_name
+        raise ValueError(f"{dataset_name} dataset has not been defined")
+
+    data_loader = DataLoader(
+        dataset,
+        batch_size=config['batch_size'],
+        shuffle=("train" in split) if shuffle is None else shuffle,
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+        collate_fn=collate_fn
+    )
+    return data_loader

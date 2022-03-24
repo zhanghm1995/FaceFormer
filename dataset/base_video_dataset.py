@@ -63,6 +63,10 @@ class BaseVideoDataset(Dataset):
 
         self.build_dataset()
 
+        ## Define the image transformation operations
+        transform_list = [transforms.ToTensor()]
+        self.image_transforms = transforms.Compose(transform_list)
+
     def build_dataset(self):
         self.total_frames_list = []
         self.length_token_list = [] # increamental length list
