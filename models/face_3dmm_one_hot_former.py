@@ -101,6 +101,14 @@ class Face3DMMOneHotFormer(nn.Module):
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
 
+        self.config = args
+
+        if args.use_mouth_mask:
+            binary_mouth_mask = np.load("./data/big_mouth_mask.npy")
+            mouth_mask = np.ones(35709)
+            mouth_mask[binary_mouth_mask] = 1.8
+            self.mouth_mask_weight = torch.from_numpy(np.expand_dims(mouth_mask, 0)) # (1, 35709)
+
     def forward(self, audio, template, vertice, one_hot, criterion, teacher_forcing=True):
         self.device = audio.device
         # tgt_mask: :math:`(T, T)`.
@@ -144,8 +152,17 @@ class Face3DMMOneHotFormer(nn.Module):
                 vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
         vertice_out = vertice_out + template
-        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3)
-        loss = torch.mean(loss)
+        if self.config.use_mouth_mask:
+            batch, seq_len = vertice_out.shape[:2]
+            ## If consider mouth region weight
+            vertice_out = vertice_out.reshape((batch, seq_len, -1, 3))
+            vertice = vertice.reshape((batch, seq_len, -1, 3))
+
+            loss = torch.sum((vertice_out - vertice)**2, dim=-1) * self.mouth_mask_weight[None, ...].to(vertice)
+            loss = torch.mean(loss)
+        else:
+            loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3)
+            loss = torch.mean(loss)
         return loss
 
     def predict(self, audio, template, one_hot):

@@ -43,15 +43,17 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         audio = batch['raw_audio']
-        template = torch.zeros((audio.shape[0], 64)).to(audio)
-        vertice = batch['gt_face_3d_params']
+        template = batch['template']
+        vertice = batch['face_vertex']
         one_hot = batch['one_hot']
 
         loss = self.model(
             audio, template, vertice, one_hot, self.criterion, teacher_forcing=False)
+
+        batch_size = audio.shape[0]
         
         ## Calcuate the loss
-        self.log('train/total_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
         return loss
         
     # def validation_step(self, batch, batch_idx):
@@ -67,23 +69,13 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
     #     self.log('val/total_loss', loss, on_epoch=True, prog_bar=True)
     #     return loss
 
-    def compute_loss(self, data_dict, model_output):
-        loss_dict = {}
-        
-        ## 3D loss
-        pred_params = model_output['face_3d_params']
-        tgt_params = data_dict['gt_face_3d_params']
-
-        loss_3dmm = 20 * F.smooth_l1_loss(pred_params[:, :, :], tgt_params[:, :, :])
-
-        loss_dict['loss_3dmm'] = loss_3dmm
-        return loss_dict
-
     def test_step(self, batch, batch_idx):
+        ## We do testing like official FaceFormer to conditioned on different one_hot
         audio = batch['raw_audio']
-        template = torch.zeros((audio.shape[0], 64)).to(audio)
-        vertice = batch['gt_face_3d_params']
+        template = batch['template']
+        vertice = batch['face_vertex']
         one_hot = batch['one_hot']
+        video_name = batch['video_name'][0]
         
         model_output = self.model.predict(audio, template, one_hot)
         model_output = model_output.squeeze().detach().cpu().numpy() # (seq_len, 64)
@@ -91,9 +83,10 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         ## Save the results
         save_dir = osp.join(self.logger.log_dir, "vis")
         os.makedirs(save_dir, exist_ok=True)
-        np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
+        # np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
+        np.save(osp.join(save_dir, f"{video_name}_{batch_idx:03d}.npy"), model_output) # save face vertex
 
         ## Save audio
         audio_data = audio[0].cpu().numpy()
-        wavfile.write(osp.join(save_dir, f"{batch_idx:03d}.wav"), 16000, audio_data)
+        wavfile.write(osp.join(save_dir, f"{video_name}_{batch_idx:03d}.wav"), 16000, audio_data)
             
