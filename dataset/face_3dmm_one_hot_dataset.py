@@ -136,6 +136,7 @@ class Face3DMMOneHotDataset(BaseVideoDataset):
         data_dict['one_hot'] = torch.FloatTensor(one_hot)
         data_dict['template'] = torch.FloatTensor(template_face.reshape((-1))) # (N,)
         data_dict['face_vertex'] = torch.FloatTensor(gt_face_3d_vertex)
+        data_dict['video_name']  = choose_video
         return data_dict
 
 

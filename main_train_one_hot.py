@@ -53,7 +53,7 @@ model = get_model(config['model_name'], config)
 if config.checkpoint is None:
     print(f"[WARNING] Train from scratch!")
 else:
-    print(f"Load pretrained model from {config.checkpoint}")
+    print(f"[WARNING] Load pretrained model from {config.checkpoint}")
     model = model.load_from_checkpoint(config.checkpoint, config=config)
 
 if not config['test_mode']:

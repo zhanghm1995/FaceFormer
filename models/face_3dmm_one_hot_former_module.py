@@ -49,9 +49,11 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
 
         loss = self.model(
             audio, template, vertice, one_hot, self.criterion, teacher_forcing=False)
+
+        batch_size = audio.shape[0]
         
         ## Calcuate the loss
-        self.log('train/total_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/total_loss', loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
         return loss
         
     # def validation_step(self, batch, batch_idx):
@@ -69,8 +71,8 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         audio = batch['raw_audio']
-        template = torch.zeros((audio.shape[0], 64)).to(audio)
-        vertice = batch['gt_face_3d_params']
+        template = batch['template']
+        vertice = batch['face_vertex']
         one_hot = batch['one_hot']
         
         model_output = self.model.predict(audio, template, one_hot)
@@ -79,7 +81,8 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         ## Save the results
         save_dir = osp.join(self.logger.log_dir, "vis")
         os.makedirs(save_dir, exist_ok=True)
-        np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
+        # np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
+        np.save(osp.join(save_dir, f"{batch_idx:03d}.npy"), model_output) # save face vertex
 
         ## Save audio
         audio_data = audio[0].cpu().numpy()
