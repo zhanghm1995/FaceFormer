@@ -48,7 +48,7 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         one_hot = batch['one_hot']
 
         loss = self.model(
-            audio, template, vertice, one_hot, self.criterion, teacher_forcing=False)
+            audio, template, vertice, one_hot, self.criterion, teacher_forcing=self.config.teacher_forcing)
 
         batch_size = audio.shape[0]
         

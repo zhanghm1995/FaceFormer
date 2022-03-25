@@ -18,9 +18,11 @@ dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
-  fetch_length: 250
-  fetch_stride: 250
+  fetch_length: 100
+  fetch_stride: 100
   number_workers: 6
+
+teacher_forcing: True
 
 Face3DMMFormer:
   dataset: vocaset
