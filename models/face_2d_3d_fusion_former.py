@@ -15,7 +15,7 @@ import copy
 import math
 from wav2vec import Wav2Vec2Model
 from .face_3dmm_one_hot_former import Face3DMMOneHotFormer
-from .image_unet import ImageUNet
+from .image_unet import ImageUNet, Generator
 
 
 # Alignment Bias
@@ -41,10 +41,9 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
         self.config = args
 
         ## Define the model
-        self.face_2d_net = ImageUNet(in_ch=6)
+        self.face_2d_net = Generator(dropout_p=0.2)
 
     def forward(self, data_dict, teacher_forcing=False):
-        self.device = audio.device
         audio = data_dict['raw_audio']
         template = data_dict['template']
         vertice = data_dict['face_vertex']
@@ -52,6 +51,9 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
         gt_face_image = data_dict['gt_face_image'] # (B, S, 3, H, W)
         gt_mouth_mask_image = data_dict['gt_mouth_mask_image'] # (B, S, 1, H, W)
         gt_face_image_no_mouth = gt_face_image * (1 - gt_mouth_mask_image) # mouth masked face image
+
+        self.device = audio.device
+        batch_size, seq_len, _ = vertice.shape
 
         # tgt_mask: :math:`(T, T)`.
         # memory_mask: :math:`(T, S)`.
@@ -63,6 +65,12 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
         hidden_states = self.audio_encoder(
             audio, self.dataset, frame_num=frame_num).last_hidden_state
         hidden_states = self.audio_feature_map(hidden_states)
+
+        ## Move to CPU to save GPU memory
+        data_dict['raw_audio'] = data_dict['raw_audio'].cpu()
+        data_dict['gt_face_image'] = data_dict['gt_face_image'].cpu()
+        data_dict['face_vertex'] = data_dict['face_vertex'].cpu()
+
 
         if teacher_forcing:
             vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
@@ -85,24 +93,33 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
 
                     ## Handle the 2D data
                     # 1) Get the first frame GT face
-                    first_face_img = gt_face_image[:, i:i+1, :, :, :] # (B, 3, H, W)
+                    first_face_img = gt_face_image[:, i:i+1, :, :, :] # (B, 1, 3, H, W)
                     first_face_no_mouth_img = gt_face_image_no_mouth[:, i:i+1, :, :, :]
-                    first_input_img = torch.concat((first_face_img, first_face_no_mouth_img), dim=1) # (B, 6, H, W)
+                    first_input_img = torch.concat((first_face_img, first_face_no_mouth_img), dim=2) # (B, 1, 6, H, W)
+
+                    # # NOTE: one batch could cause BatchNorm error!
+                    # first_input_img = first_input_img.repeat((1, 2, 1, 1, 1)) # (B, 1, 6, H, W)
+
                     # 2) Encode the face image
                     face_2d_emb = self.face_2d_net.encode(first_input_img) # (B, 1, 1024)
+                    face_2d_emb += style_emb
                     face_2d_input = self.PPE(face_2d_emb)
                 else:
                     vertice_input = self.PPE(vertice_emb)
 
                     ## Get current frame gt face with masked mouth
                     face_no_mouth_img = gt_face_image_no_mouth[:, i:i+1, :, :, :]
-                    input_img = torch.concat((face_2d_out[:, -1, :].unsqueeze(1), face_no_mouth_img), dim=1)
-                    face_2d_emb = self.face_2d_net.encode(input_img)
+                    input_img = torch.concat((face_2d_out[:, -1, :].unsqueeze(1), face_no_mouth_img), dim=2)
+                    first_input_img = torch.concat((first_input_img, input_img), dim=1) # (B, S, 6, H, W)
+
+                    # 2) Encode the face image
+                    face_2d_emb = self.face_2d_net.encode(first_input_img) # (B, S, 1024)
+                    face_2d_emb += style_emb
                     face_2d_input = self.PPE(face_2d_emb)
 
                 tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
                 memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
-
+                tgt_mask = tgt_mask.repeat((batch_size, 1, 1))
                 ## Repeat sth
                 fusion_tgt_mask = tgt_mask.repeat((1, 2, 2))
                 fusion_memory_mask = memory_mask.repeat((2, 2))

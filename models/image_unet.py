@@ -10,6 +10,8 @@ Description: The UNet-based image generation network
 import torch
 from torch import nn
 from torch import Tensor
+import torch.nn.functional as F
+import segmentation_models_pytorch as smp # pip install segmentation-models-pytorch
 from .conv import Conv2dTranspose, Conv2d
 
 
@@ -52,12 +54,12 @@ class ImageUNet(nn.Module):
 
 
             nn.Sequential(Conv2d(512, 512, kernel_size=3, stride=1, padding=0),     # 1, 1
-                        Conv2d(512, 512, kernel_size=1, stride=1, padding=0)),])    #1*1
+                          Conv2d(512, 1024, kernel_size=1, stride=1, padding=0)),])    #1*1
 
         self.face_decoder_blocks = nn.ModuleList([
-            nn.Sequential(Conv2d(512, 512, kernel_size=1, stride=1, padding=0),),              #  audio_embedding
+            nn.Sequential(Conv2d(1024, 512, kernel_size=1, stride=1, padding=0),),              #  audio_embedding
 
-            nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=1, padding=0), # 3,3    #(N-1)*S-2P+K    audio_embedding +
+            nn.Sequential(Conv2dTranspose(1536, 512, kernel_size=3, stride=1, padding=0), # 3,3    #(N-1)*S-2P+K    audio_embedding +
             Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),),
 
             nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
@@ -88,8 +90,8 @@ class ImageUNet(nn.Module):
             Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),),]) # 192,192    
         
         self.output_block = nn.Sequential(Conv2d(80, 32, kernel_size=3, stride=1, padding=1),
-            nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
-            nn.Sigmoid()) 
+                                          nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
+                                          nn.Sigmoid()) 
         
         self.audio_fc = nn.Linear(128, 512)
 
@@ -97,7 +99,7 @@ class ImageUNet(nn.Module):
         """Encode the batched input image sequences into tokens
 
         Args:
-            input (Tensor): (B, T, 3, H, W)
+            input (Tensor): (B, T, C, H, W)
 
         Returns:
             (Tensor): (B, T, C)
@@ -111,7 +113,7 @@ class ImageUNet(nn.Module):
         for f in self.face_encoder_blocks:
             x = f(x)
             self.feats.append(x)
-        
+
         ## Convert to (B, T, C)
         output = self.feats[-1] # 4-d tensor
         output = output.reshape(B, T, -1)
@@ -133,6 +135,7 @@ class ImageUNet(nn.Module):
 
         input = input.reshape(-1, C, 1, 1)
         x = input
+
         for f in self.face_decoder_blocks:
             x = f(x)
             try:
@@ -181,4 +184,57 @@ class ImageUNet(nn.Module):
         
         x = self.output_block(x)
         output = x.reshape((B, T, 3, self.image_size, self.image_size))
+        return output
+
+
+class Generator(nn.Module):
+    def __init__(self, dropout_p=0.4):
+        super(Generator, self).__init__()
+        self.dropout_p = dropout_p
+        # Load Unet with Resnet34 Embedding from SMP library. Pre-trained on Imagenet
+        self.unet = smp.Unet(encoder_name="resnet34", 
+                             encoder_weights="imagenet", 
+                             in_channels=6, classes=3, activation=None)
+        # Adding two layers of Dropout as the original Unet doesn't have any
+        # This will be used to feed noise into the networking during both training and evaluation
+        # These extra layers will be added on decoder part where 2D transposed convolution is occured
+        for idx in range(1, 3):
+            self.unet.decoder.blocks[idx].conv1.add_module('3', nn.Dropout2d(p=self.dropout_p))
+        # Disabling in-place ReLU as to avoid in-place operations as it will
+        # cause issues for double backpropagation on the same graph
+        for module in self.unet.modules():
+            if isinstance(module, nn.ReLU):
+                module.inplace = False
+        
+        self.enc_conv = nn.Sequential(Conv2d(512, 512, kernel_size=3, stride=2, padding=1),
+                                         Conv2d(512, 1024, kernel_size=3, stride=1, padding=0))
+        self.dec_conv = nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=1, padding=0, output_padding=0),
+                                      Conv2dTranspose(512, 512, kernel_size=3, stride=2, padding=1, output_padding=1))
+
+    def forward(self, x):
+        x = self.unet(x)
+        x = F.relu(x)
+        return x
+
+    def encode(self, x):
+        # input (B, T, C, H, W)
+        B, T, C, H, W = x.shape
+        input = x.reshape((-1, C, H, W))
+
+        self.feature_list = self.unet.encoder(input)
+        last_feature = self.feature_list[-1]
+        output = self.enc_conv(last_feature)
+        return output.reshape(B, T, -1)
+    
+    def decode(self, x):
+        B, T, C = x.shape
+
+        input = x.reshape(-1, C, 1, 1)
+        x = self.dec_conv(input)
+        self.feature_list[-1] = x
+
+        decoder_output = self.unet.decoder(*self.feature_list)
+        masks = self.unet.segmentation_head(decoder_output)
+
+        output = masks.reshape((B, T, 3, 192, 192))
         return output
