@@ -21,8 +21,8 @@ dataset:
   dataset_name: Face2D3DDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 2
-  fetch_length: 100
-  fetch_stride: 100
+  fetch_length: 75
+  fetch_stride: 75
   number_workers: 6
 
 Face2D3DFusionFormer:
