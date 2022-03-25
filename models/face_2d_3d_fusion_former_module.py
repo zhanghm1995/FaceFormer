@@ -16,6 +16,7 @@ from scipy.io import wavfile
 from torch.nn import functional as F 
 import pytorch_lightning as pl
 from .face_2d_3d_fusion_former import Face2D3DFusionFormer
+from utils.save_data import save_image_array_to_video, save_video
 
 
 class Face2D3DFusionFormerModule(pl.LightningModule):
@@ -55,23 +56,39 @@ class Face2D3DFusionFormerModule(pl.LightningModule):
         loss_dict = self.compute_loss(batch, model_output)
         loss = loss_dict['loss']
 
+        train_loss_dict = {}
+        for key, value in loss_dict.items():
+            key = f"train/{key}"
+            train_loss_dict[key] = value
+
         batch_size = batch['raw_audio'].shape[0]
 
-        self.log_dict(loss_dict, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log_dict(train_loss_dict, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
         return loss
     
-    # def validation_step(self, batch, batch_idx):
-    #     audio = batch['raw_audio']
-    #     template = torch.zeros((audio.shape[0], 64)).to(audio)
-    #     vertice = batch['gt_face_3d_params']
-    #     one_hot = batch['one_hot']
+    def validation_step(self, batch, batch_idx):
+        model_output = self.model(
+            batch, teacher_forcing=self.config.teacher_forcing)
 
-    #     loss = self.model(
-    #         audio, template, vertice, one_hot, self.criterion, teacher_forcing=False)
+        ## Calcuate the loss
+        loss_dict = self.compute_loss(batch, model_output)
         
-    #     ## Calcuate the loss
-    #     self.log('val/total_loss', loss, on_epoch=True, prog_bar=True)
-    #     return loss
+        batch_size = batch['raw_audio'].shape[0]
+        val_loss_dict = {}
+        for key, value in loss_dict.items():
+            key = f"val/{key}"
+            val_loss_dict[key] = value
+
+        self.log_dict(val_loss_dict, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+
+        ## Save visualization
+        pred_face_image = model_output['pred_face_image'] # (B, S, 3, 192, 192)
+
+        if batch_idx % 10 == 0:
+            save_image_array_to_video(pred_face_image,
+                                      osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch:03d}"),
+                                      audio_array=batch['raw_audio'],
+                                      name=batch_idx)
 
     def test_step(self, batch, batch_idx):
         ## We do testing like official FaceFormer to conditioned on different one_hot
