@@ -82,8 +82,12 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
             vertice_input = self.PPE(vertice_input)
 
             ## Get the 2D sequence input
-            first_face_no_mouth_img = gt_face_image_no_mouth[:, 0:1, :, :, :]
-            shifted_gt_mouth_img = torch.cat((first_face_no_mouth_img, gt_face_image[:, :-1, ...]), dim=1)
+            first_face_no_mouth_img = gt_face_image_no_mouth[:, 0:1, ...]
+            # shifted_gt_mouth_img = torch.cat((first_face_no_mouth_img, gt_face_image[:, :-1, ...]), dim=1)
+
+            ## Use the GT first frame
+            shifted_gt_mouth_img = torch.cat((gt_face_image[:, 0:1, ...], gt_face_image[:, :-1, ...]), dim=1)
+
             face_input_img = torch.cat((shifted_gt_mouth_img, gt_face_image_no_mouth), dim=2) # (B, S, 6, H, W)
             face_2d_emb = self.face_2d_net.encode(face_input_img)
             face_2d_emb += style_emb
