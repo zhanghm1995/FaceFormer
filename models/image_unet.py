@@ -206,15 +206,15 @@ class Generator(nn.Module):
             if isinstance(module, nn.ReLU):
                 module.inplace = False
         
-        self.enc_conv = nn.Sequential(Conv2d(512, 512, kernel_size=3, stride=2, padding=1),
-                                         Conv2d(512, 1024, kernel_size=3, stride=1, padding=0))
-        self.dec_conv = nn.Sequential(Conv2dTranspose(1024, 512, kernel_size=3, stride=1, padding=0, output_padding=0),
-                                      Conv2dTranspose(512, 512, kernel_size=3, stride=2, padding=1, output_padding=1))
+        self.enc_conv = nn.Sequential(nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1),
+                                      nn.Conv2d(512, 1024, kernel_size=3, stride=1, padding=0))
+        self.dec_conv = nn.Sequential(nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=1, padding=0, output_padding=0),
+                                      nn.ConvTranspose2d(512, 512, kernel_size=3, stride=2, padding=1, output_padding=1))
 
-    def forward(self, x):
-        x = self.unet(x)
-        x = F.relu(x)
-        return x
+    # def forward(self, x):
+    #     x = self.unet(x)
+    #     x = F.relu(x)
+    #     return x
 
     def encode(self, x):
         # input (B, T, C, H, W)

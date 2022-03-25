@@ -14,12 +14,15 @@ wd: 0.0
 lr_decay_step: 20
 lr_decay_rate: 0.8
 
+teacher_forcing: True
+use_mouth_mask: True
+
 dataset:
   dataset_name: Face2D3DDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 2
-  fetch_length: 25
-  fetch_stride: 25
+  fetch_length: 100
+  fetch_stride: 100
   number_workers: 6
 
 Face2D3DFusionFormer:
@@ -27,4 +30,4 @@ Face2D3DFusionFormer:
   feature_dim: 1024
   period: 25
   vertice_dim: 107127
-  use_mouth_mask: True
+  use_mouth_mask: ${use_mouth_mask}

@@ -66,10 +66,10 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
             audio, self.dataset, frame_num=frame_num).last_hidden_state
         hidden_states = self.audio_feature_map(hidden_states)
 
-        ## Move to CPU to save GPU memory
-        data_dict['raw_audio'] = data_dict['raw_audio'].cpu()
-        data_dict['gt_face_image'] = data_dict['gt_face_image'].cpu()
-        data_dict['face_vertex'] = data_dict['face_vertex'].cpu()
+        # ## Move to CPU to save GPU memory
+        # data_dict['raw_audio'] = data_dict['raw_audio'].cpu()
+        # data_dict['gt_face_image'] = data_dict['gt_face_image'].cpu()
+        # data_dict['face_vertex'] = data_dict['face_vertex'].cpu()
 
 
         if teacher_forcing:
@@ -80,10 +80,33 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
             vertice_input = self.vertice_map(vertice_input)
             vertice_input = vertice_input + style_emb
             vertice_input = self.PPE(vertice_input)
+
+            ## Get the 2D sequence input
+            first_face_no_mouth_img = gt_face_image_no_mouth[:, 0:1, :, :, :]
+            shifted_gt_mouth_img = torch.cat((first_face_no_mouth_img, gt_face_image[:, :-1, ...]), dim=1)
+            face_input_img = torch.cat((gt_face_image, gt_face_image_no_mouth), dim=2) # (B, S, 6, H, W)
+            face_2d_emb = self.face_2d_net.encode(face_input_img)
+            face_2d_emb += style_emb
+            face_2d_input = self.PPE(face_2d_emb)
+
             tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
             memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
-            vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
+
+            tgt_mask = tgt_mask.repeat((batch_size, 1, 1))
+            ## Repeat sth
+            fusion_tgt_mask = tgt_mask.repeat((1, 2, 2))
+            fusion_memory_mask = memory_mask.repeat((2, 2))
+            fusion_input = torch.concat((face_2d_input, vertice_input), dim=1)
+            fusion_hidden_states = hidden_states.repeat((1, 2, 1))
+
+            fusion_out = self.transformer_decoder(
+                fusion_input, fusion_hidden_states, tgt_mask=fusion_tgt_mask, memory_mask=fusion_memory_mask)
+            seq_len = int(fusion_out.shape[1] // 2)
+            face_2d_out = fusion_out[:, :seq_len, ...] # ()
+            vertice_out = fusion_out[:, seq_len:, ...] # ()
+
             vertice_out = self.vertice_map_r(vertice_out)
+            face_2d_out = self.face_2d_net.decode(face_2d_out) # to (B, S, 3, H, W)
         else:
             for i in range(frame_num):
                 if i==0:
@@ -143,6 +166,9 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
                 new_output = new_output + style_emb
                 vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
+        vertice_out = vertice_out + template
+        return {"pred_face_vertex": vertice_out,
+                'pred_face_image': face_2d_out}
         print(vertice_out.shape, face_2d_out.shape)
         # vertice_out = vertice_out + template
         # if self.config.use_mouth_mask:

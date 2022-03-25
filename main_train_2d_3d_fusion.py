@@ -70,7 +70,7 @@ if not config['test_mode']:
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'],
                          max_epochs=config.max_epochs,
                          check_val_every_n_epoch=config.check_val_every_n_epoch)
-    
+    torch.autograd.set_detect_anomaly(True)
     # trainer = pl.Trainer(gpus=2, default_root_dir=config['checkpoint_dir'], 
     #                      accelerator="gpu", 
     #                      strategy="ddp",
