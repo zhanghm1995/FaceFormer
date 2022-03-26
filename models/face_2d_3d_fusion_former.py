@@ -42,6 +42,8 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
 
         ## Define the model
         self.face_2d_net = Generator(dropout_p=0.2)
+        self.face_2d_layer_norm = nn.LayerNorm(self.config.feature_dim)
+        self.face_3d_layer_norm = nn.LayerNorm(self.config.feature_dim)
 
     def forward(self, data_dict, teacher_forcing=False):
         audio = data_dict['raw_audio']
@@ -80,6 +82,7 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
             vertice_input = self.vertice_map(vertice_input)
             vertice_input = vertice_input + style_emb
             vertice_input = self.PPE(vertice_input)
+            vertice_input = self.face_3d_layer_norm(vertice_input)
 
             ## Get the 2D sequence input
             first_face_no_mouth_img = gt_face_image_no_mouth[:, 0:1, ...]
@@ -92,6 +95,7 @@ class Face2D3DFusionFormer(Face3DMMOneHotFormer):
             face_2d_emb = self.face_2d_net.encode(face_input_img)
             face_2d_emb += style_emb
             face_2d_input = self.PPE(face_2d_emb)
+            face_2d_input = self.face_2d_layer_norm(face_2d_input)
 
             tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
             memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
