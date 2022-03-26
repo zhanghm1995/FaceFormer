@@ -15,6 +15,7 @@ import torch.nn as nn
 from scipy.io import wavfile
 from torch.nn import functional as F 
 import pytorch_lightning as pl
+import lpips
 from .face_2d_3d_fusion_former import Face2D3DFusionFormer
 from utils.save_data import save_image_array_to_video, save_video
 
@@ -31,6 +32,7 @@ class Face2D3DFusionFormerModule(pl.LightningModule):
         self.model = Face2D3DFusionFormer(config['Face2D3DFusionFormer'])
 
         self.criterion = nn.MSELoss()
+        self.perceptual_loss = lpips.LPIPS(net='alex')
 
         if self.config.use_mouth_mask:
             binary_mouth_mask = np.load("./data/big_mouth_mask.npy")
@@ -136,7 +138,13 @@ class Face2D3DFusionFormerModule(pl.LightningModule):
         loss_2d = F.l1_loss(pred_face_image, tgt_face_image)
         loss_dict['loss_2d'] = loss_2d
 
-        loss = loss_3d + loss_2d
+        ## Compute the Perceptual loss
+        batch_size, seq_len, ch, H, W = tgt_face_image.shape
+        loss_percep = torch.mean(self.perceptual_loss(
+            pred_face_image.reshape((-1, ch, H, W)), tgt_face_image.reshape((-1, ch, H, W))))
+        loss_dict['loss_percep'] = loss_percep
+
+        loss = loss_3d + loss_2d + loss_percep
 
         loss_dict['loss'] = loss
 
