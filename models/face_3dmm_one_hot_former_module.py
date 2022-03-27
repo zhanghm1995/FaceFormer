@@ -73,8 +73,8 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         ## We do testing like official FaceFormer to conditioned on different one_hot
         audio = batch['raw_audio']
         template = batch['template']
-        vertice = batch['face_vertex']
         one_hot = batch['one_hot']
+        # vertice = batch['face_vertex']
         video_name = batch['video_name'][0]
         
         model_output = self.model.predict(audio, template, one_hot)

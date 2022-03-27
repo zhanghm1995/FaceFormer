@@ -164,16 +164,14 @@ class BaseVideoDataset(Dataset):
             if need_mouth_masked_img:
                 img_path = osp.join(self.data_root, video_dir, "mouth_mask", f"{idx:06d}.png")
                 mouth_mask_img = cv2.resize(cv2.imread(img_path, cv2.IMREAD_UNCHANGED),
-                                            self.target_image_size)[..., None] # (H, W, 1)
+                                            self.target_image_size, 
+                                            interpolation=cv2.INTER_NEAREST)[..., None] # (H, W, 1)
 
-                img = self.image_transforms(img)
                 mouth_mask_img = self.image_transforms(mouth_mask_img)
-
-                img_list.append(img)
                 mouth_masked_img_list.append(mouth_mask_img)
-            else:
-                img = self.image_transforms(img)
-                img_list.append(img)
+            
+            img = self.image_transforms(img)
+            img_list.append(img)
         
         img_seq_tensor = torch.stack(img_list) # to (T, 3, H, W)
 

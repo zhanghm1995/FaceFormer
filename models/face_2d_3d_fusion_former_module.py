@@ -18,6 +18,7 @@ import pytorch_lightning as pl
 import lpips
 from .face_2d_3d_fusion_former import Face2D3DFusionFormer
 from utils.save_data import save_image_array_to_video, save_video
+from losses import pixel_wise_loss
 
 
 class Face2D3DFusionFormerModule(pl.LightningModule):
@@ -136,6 +137,7 @@ class Face2D3DFusionFormerModule(pl.LightningModule):
         ## Compute the 2D loss
         tgt_face_image = batch['gt_face_image']
         loss_2d = F.l1_loss(pred_face_image, tgt_face_image)
+        loss_2d = pixel_wise_loss(pred_face_image, tgt_face_image, mask=batch['gt_mouth_mask_image'], weight=1.5)
         loss_dict['loss_2d'] = loss_2d
 
         ## Compute the Perceptual loss

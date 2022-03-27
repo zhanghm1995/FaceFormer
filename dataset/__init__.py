@@ -75,3 +75,18 @@ def get_dataset(config, split, shuffle=None):
         collate_fn=collate_fn
     )
     return data_loader
+
+def get_test_dataset(config):
+    from .face_3dmm_one_hot_test_dataset import Face3DMMTestDataset
+    dataset = Face3DMMTestDataset(**config)
+
+    data_loader = DataLoader(
+        dataset,
+        batch_size=config['batch_size'],
+        shuffle=False,
+        num_workers=config['number_workers'],
+        # pin_memory=True,
+        pin_memory=False,
+        collate_fn=collate_fn
+    )
+    return data_loader

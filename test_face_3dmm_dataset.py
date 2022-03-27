@@ -9,7 +9,7 @@ Description: Test Face3DMMDataset
 
 from omegaconf import OmegaConf
 from easydict import EasyDict
-from dataset import get_3dmm_dataset
+from dataset import get_3dmm_dataset, get_test_dataset
 
 
 def test_face_3dmm_dataset():
@@ -42,5 +42,14 @@ def test_face_3dmm_dataset_loop():
     #         print(value.shape)
 
 
+def test_face_3dmm_test_dataset():
+    config = OmegaConf.load("./config/face_test_dataset.yaml")
+    dataset_config = config['dataset']
+
+    test_dataloader = get_test_dataset(dataset_config)
+    print(len(test_dataloader))
+
+    dataset = next(iter(test_dataloader))
+
 if __name__ == "__main__":
-    test_face_3dmm_dataset_loop()
+    test_face_3dmm_test_dataset()

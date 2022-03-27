@@ -11,7 +11,7 @@ import argparse
 import torch
 import os.path as osp
 import pytorch_lightning as pl
-from dataset import get_3dmm_dataset
+from dataset import get_3dmm_dataset, get_test_dataset
 from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.plugins import DDPPlugin
@@ -82,7 +82,8 @@ if not config['test_mode']:
 else:
     print(f"{'='*25} Start Testing, Good Luck! {'='*25}")
 
-    test_dataloader = get_3dmm_dataset(config['dataset'], split="voca_test", shuffle=False)
+    # test_dataloader = get_3dmm_dataset(config['dataset'], split="voca_test", shuffle=False)
+    test_dataloader = get_test_dataset(config['dataset'])
     print(f"The testing dataloader length is {len(test_dataloader)}")
     
     trainer = pl.Trainer(gpus=1, default_root_dir=config['checkpoint_dir'])
