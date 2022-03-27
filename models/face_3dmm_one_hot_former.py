@@ -176,7 +176,11 @@ class Face3DMMOneHotFormer(nn.Module):
             loss = torch.mean(loss)
         return loss
 
-    def predict(self, audio, template, one_hot):
+    def predict(self, batch):
+        audio = batch['raw_audio']
+        template = batch['template']
+        one_hot = batch['one_hot']
+
         self.device = audio.device
 
         template = template.unsqueeze(1) # (1,1, V*3)
@@ -204,6 +208,11 @@ class Face3DMMOneHotFormer(nn.Module):
             new_output = new_output + style_emb
             vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
-        vertice_out = vertice_out + template
+        if self.config.vertice_dim == 64:
+            ## in this case, we predict the expression parameters
+            exp_base = batch['exp_base'] # (1, 3N, 64)
+            vertice_out = template + torch.einsum('ijk,iak->iaj', exp_base, vertice_out)
+        else:
+            vertice_out = vertice_out + template
         return vertice_out
 
