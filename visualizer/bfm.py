@@ -274,7 +274,7 @@ class ParametricFaceModel:
             'trans': translations
         }
     
-    def compute_for_render(self, coeffs, face_vertex=None):
+    def compute_for_render(self, coeffs, face_vertex_in=None):
         """
         Return:
             face_vertex     -- torch.tensor, size (B, N, 3), in camera coordinate
@@ -284,11 +284,11 @@ class ParametricFaceModel:
             coeffs          -- torch.tensor, size (B, 257)
         """
         coef_dict = self.split_coeff(coeffs)
-        if face_vertex is None:
+        if face_vertex_in is None:
             face_shape = self.compute_shape(coef_dict['id'], coef_dict['exp'])
         else:
-            batch_size = face_vertex.shape[0]
-            face_shape = face_vertex.reshape(batch_size, -1, 3)
+            batch_size = face_vertex_in.shape[0]
+            face_shape = face_vertex_in.reshape(batch_size, -1, 3)
         
         rotation = self.compute_rotation(coef_dict['angle'])
 

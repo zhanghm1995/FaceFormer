@@ -287,7 +287,7 @@ if __name__ == "__main__":
         f"../../HDTF_preprocessed/{video_name}/deep3dface512"
     
     output_root = \
-        f"../debug"
+        f"../debug2"
 
     if osp.exists(output_root):
         print("Delete the output folder...")
