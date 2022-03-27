@@ -43,12 +43,9 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         audio = batch['raw_audio']
-        template = batch['template']
-        vertice = batch['face_vertex']
-        one_hot = batch['one_hot']
 
         loss = self.model(
-            audio, template, vertice, one_hot, self.criterion, teacher_forcing=self.config.teacher_forcing)
+            batch, self.criterion, teacher_forcing=self.config.teacher_forcing)
 
         batch_size = audio.shape[0]
         
