@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 
 def test_2d_3d_dataset():
-    config = OmegaConf.load("./config/face_3dmm_config.yaml")
+    config = OmegaConf.load("./config/face_3dmm_motion_mouth_mask_pix2pixhd.yaml")
 
     dataset_config = config['dataset']
     dataset_config['dataset_name'] = "Face2D3DDataset"

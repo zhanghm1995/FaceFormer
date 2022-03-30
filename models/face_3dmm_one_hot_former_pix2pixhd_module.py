@@ -44,7 +44,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         self.facemodel = ParametricFaceModel(
             bfm_folder=opt.bfm_folder, camera_distance=opt.camera_d, focal=opt.focal, center=opt.center,
-            is_train=self.isTrain, default_name=opt.bfm_model
+            is_train=True
         )
 
         fov = 2 * np.arctan(opt.center / opt.focal) * 180 / np.pi
@@ -53,7 +53,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         )
 
         ## Define criterions
-        self.photo_loss_criterion = photo_loss
+        self.criterionPhoto = photo_loss
         self.criterionVGG = GANLoss
         self.criterionGAN = VGGLoss
 
@@ -93,7 +93,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
         
-        return face_2d_img
+        return {'generated_face': face_2d_img}
     
     def generator_step(self, batch):
         ## ============= Train the Generator ============== ##
@@ -120,10 +120,9 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
             face_mask, _, _ = self.renderer(self.pred_vertex, self.facemodel.front_face_buf)
 
         face_mask = face_mask.detach()
-        self.loss_color = self.config.w_color * self.comupte_color_loss(
-            self.pred_face, self.input_img, self.atten_mask * face_mask)
+        self.loss_color = self.config.w_color * self.criterionPhoto(
+            self.pred_face, real_image, face_mask)
 
-        
         ## GAN loss
         pred_fake = self.netD.forward(torch.cat((input_label, fake_image), dim=1))        
         loss_G_GAN = self.criterionGAN(pred_fake, True)
@@ -131,7 +130,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         ## VGG loss
         loss_G_VGG = self.criterionVGG(fake_image, real_image) * self.opt.lambda_feat
-        loss_dict['loss_G_VGG'] = loss_G_VGG
+        loss_dict['loss_G_VGG'] = self.config.w_G_VGG * loss_G_VGG
         
         ## FM loss
 

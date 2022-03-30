@@ -1,0 +1,46 @@
+## Refer to the Face3DMMFormer + Pix2PixHD end-to-end training
+checkpoint_dir: work_dir/train_face_3dmm_vertex_mouth_mask
+test_mode: False
+
+model_name: Face3DMMOneHotFormer
+
+checkpoint: null
+
+max_epochs: 200
+check_val_every_n_epoch: 1
+
+lr: 0.0001
+wd: 0.0
+lr_decay_step: 20
+lr_decay_rate: 0.8
+
+dataset:
+  dataset_name: Face2D3DDataset
+  data_root: ./data/HDTF_preprocessed
+  batch_size: 1
+  fetch_length: 100
+  fetch_stride: 100
+  number_workers: 6
+  need_origin_face_3d_param: True
+
+teacher_forcing: True
+
+Face3DMMFormer:
+  dataset: vocaset
+  feature_dim: 1024
+  period: 25
+  vertice_dim: 107127
+  use_mouth_mask: True
+
+FaceRendererParameters:
+  bfm_folder: data/BFM
+  camera_d: 10.0
+  focal: 1015.0
+  center: 112.0
+  z_near: 5.0
+  z_far: 15.0
+
+
+use_crop_face: False
+w_color: 1.0 # image recon L1 loss weight
+w_G_VGG: 10.0 # VGG loss weight

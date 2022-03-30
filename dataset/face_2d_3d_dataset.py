@@ -21,6 +21,7 @@ from .face_3dmm_one_hot_dataset import Face3DMMOneHotDataset
 class Face2D3DDataset(Face3DMMOneHotDataset):
     def __init__(self, split, **kwargs) -> None:
         super(Face2D3DDataset, self).__init__(split, **kwargs)
+        self.need_origin_face_3d_param = kwargs.get("need_origin_face_3d_param", False)
 
     def __getitem__(self, index):
         main_idx, sub_idx = self._get_data(index)
@@ -38,7 +39,8 @@ class Face2D3DDataset(Face3DMMOneHotDataset):
         audio_seq = np.squeeze(self.audio_processor(audio_seq, sampling_rate=16000).input_values)
 
         ## Get the GT 3D face parameters
-        gt_face_3d_params_arr = self._get_face_3d_params(choose_video, start_idx)
+        gt_face_3d_params_arr, gt_face_origin_3d_param = self._get_face_3d_params(
+            choose_video, start_idx, need_origin_params=self.need_origin_face_3d_param)
 
         ## Get the template info
         template_face, id_coeff = self._get_template(choose_video)
@@ -60,4 +62,9 @@ class Face2D3DDataset(Face3DMMOneHotDataset):
         data_dict['video_name']  = choose_video
         data_dict['gt_face_image'] = gt_img_seq_tensor # (fetch_length, 3, H, W)
         data_dict['gt_mouth_mask_image'] = gt_img_mouth_mask_tensor # (fetch_length, 1, H, W)
+
+        if self.need_origin_face_3d_param:
+            # (fetch_length, 257)
+            data_dict['gt_face_origin_3d_params'] = torch.from_numpy(gt_face_origin_3d_param.astype(np.float32))
+
         return data_dict

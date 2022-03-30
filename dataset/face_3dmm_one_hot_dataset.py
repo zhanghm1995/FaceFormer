@@ -74,7 +74,7 @@ class Face3DMMOneHotDataset(BaseVideoDataset):
         coeff_res = np.concatenate(coeff_list, axis=1)
         return coeff_res
 
-    def _get_face_3d_params(self, video_dir, start_idx):
+    def _get_face_3d_params(self, video_dir, start_idx, need_origin_params=False):
         """Get face 3d params from a video and specified start index
 
         Args:
@@ -84,18 +84,29 @@ class Face3DMMOneHotDataset(BaseVideoDataset):
         Returns:
             np.ndarray: (L, C), L is the fetch length, C is the needed face parameters dimension
         """
-        face_3d_params_list = []
+        face_3d_params_list, face_origin_3d_params_list = [], []
         for idx in range(start_idx, start_idx + self.fetch_length):
             face_3d_params_path = osp.join(self.data_root, video_dir, "deep3dface", f"{idx:06d}.mat")
             
-            face_3d_params = loadmat(face_3d_params_path) # dict type
-            face_3d_params = self._get_mat_vector(face_3d_params, keys_list=["exp"])
+            face_3d_params_dict = loadmat(face_3d_params_path) # dict type
 
+            if need_origin_params:
+                face_origin_3d_params = self._get_mat_vector(face_3d_params_dict) # (1, 257)
+                face_3d_params = face_origin_3d_params[:, 80:144]
+
+                face_origin_3d_params_list.append(face_origin_3d_params)
+            else:
+                face_3d_params = self._get_mat_vector(face_3d_params_dict, keys_list=["exp"])
+            
             face_3d_params_list.append(face_3d_params)
-        
-        face_3d_params_arr = np.concatenate(face_3d_params_list, axis=0)
 
-        return face_3d_params_arr
+        face_3d_params_arr = np.concatenate(face_3d_params_list, axis=0)
+        
+        face_origin_3d_params_arr = None
+        if need_origin_params:
+            face_origin_3d_params_arr = np.concatenate(face_origin_3d_params_list, axis=0)
+
+        return face_3d_params_arr, face_origin_3d_params_arr
 
     def _get_template(self, choose_video):
         ## Assume the first frame is the template face
