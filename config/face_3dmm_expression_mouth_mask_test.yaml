@@ -20,7 +20,7 @@ dataset:
   batch_size: 1
   fetch_length: 600
   fetch_stride: 600
-  audio_path: data/audio_samples/sing_song.wav
+  audio_path: data/HDTF_preprocessed/WRA_CathyMcMorrisRodgers1_000/WRA_CathyMcMorrisRodgers1_000.wav
   video_name: WDA_MartinHeinrich_000
   training_split: voca_train
   number_workers: 6
