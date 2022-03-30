@@ -23,7 +23,7 @@ class MyMeshRender(object):
 
         self.device = torch.device('cuda') 
 
-        fov = 2 * np.arctan(128 / opt.focal) * 180 / np.pi
+        fov = 2 * np.arctan(opt.center / opt.focal) * 180 / np.pi
 
         self.renderer = MeshRenderer(
                 rasterize_fov=fov, znear=opt.z_near, zfar=opt.z_far, rasterize_size=int(2 * opt.center)

@@ -16,7 +16,7 @@ from tqdm import tqdm
 from scipy.io import loadmat, savemat
 from face_3d_params_utils import get_coeff_vector
 import cv2
-
+import subprocess
 import argparse
 
 
@@ -24,7 +24,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_root', type=str, help='the data root path')
     parser.add_argument('--video_name', type=str, help='the video data name')
+    parser.add_argument('--output_root', type=str, help='the output root path')
     parser.add_argument('--gen_vertex_path', type=str, help='generated face vertex file path')
+    parser.add_argument('--need_pose', action='store_true', help='whether need rendering face with pose')
+
     args = parser.parse_args()
     return args
 
@@ -115,64 +118,28 @@ def rescale_mask(scaled_mask: np.array, transform_params: list) -> np.array:
     return uncropped_and_rescaled_mask
 
 
-def rescale_mask_origin(scaled_mask: np.array, transform_params: list) -> np.array:
+def rescale_mask_V2(input_mask: np.array, transform_params: list):
     """
     Uncrops and rescales (i.e., resizes) the given scaled and cropped mask back to the
     resolution of the original image using the given transformation parameters.
     """
-    
+    original_image_width, original_image_height = transform_params[:2]
+    s = np.float64(transform_params[2])
+    t = transform_params[3:]
+    target_size = 224.0
+
+    scaled_image_w = (original_image_width * s).astype(np.int32)
+    scaled_image_h = (original_image_height * s).astype(np.int32)
+    left = (scaled_image_w/2 - target_size/2 + float((t[0] - original_image_width/2)*s)).astype(np.int32)
+    up = (scaled_image_h/2 - target_size/2 + float((original_image_height/2 - t[1])*s)).astype(np.int32)
+
     # Parse transform params.
-    original_image_width, original_image_height = transform_params[0:2]
-    s = transform_params[2]  # the scaling parameter
-    s = (s / 102.0) ** -1
-    t = transform_params[3:].astype(np.float)  # some parameters for transformation
-    t = [elem.item() for elem in t]
-        
-    # Repeat the computations for downscaling from preprocess_img.py/process_img() to get
-    # the parameters needed for uncropping and rescaling the mask.
+    mask_scaled = Image.new('RGB', (scaled_image_w, scaled_image_h), (0, 0, 0))
+    mask_scaled.paste(Image.fromarray(input_mask), (left, up))
     
-    # Get the width and height of the original image after downscaling.
-    scaled_image_width = np.array((original_image_width / s*102)).astype(np.int32)  
-    scaled_image_height = np.array((original_image_height / s*102)).astype(np.int32)
-    
-    scaled_mask_size = scaled_mask.shape[0]  # e.g. 224, NB. a scaled and cropped mask always has a square shape
-    
-    # Get an x or y coordinate for all sides (borders) of the mask.
-    left_side_x = (scaled_image_width/2 - scaled_mask_size/2 + float((t[0] - original_image_width/2)*102/s)).astype(np.int32)
-    right_side_x = left_side_x + scaled_mask_size
-    upper_side_y = (scaled_image_height/2 - scaled_mask_size/2 + float((original_image_height/2 - t[1])*102/s)).astype(np.int32)
-    lower_side_y = upper_side_y + scaled_mask_size
-        
-    # Compute the number of black ('missing') pixels to add to all sides of the mask.
-    n_missing_pixels_left = left_side_x
-    n_missing_pixels_right = scaled_image_width - right_side_x
-    n_missing_pixels_top = upper_side_y
-    n_missing_pixels_bottom = scaled_image_height - lower_side_y
-
-    print(n_missing_pixels_left, n_missing_pixels_right, n_missing_pixels_top, n_missing_pixels_bottom)
-
-    # Define np.arrays with the needed number of black pixels.
-    black_pixels_left = np.zeros(shape=(scaled_mask_size, n_missing_pixels_left, 3), dtype='uint8')
-    black_pixels_right = np.zeros(shape=(scaled_mask_size, n_missing_pixels_right, 3), dtype='uint8')
-    black_pixels_top = np.zeros(shape=(n_missing_pixels_top, scaled_image_width, 3), dtype='uint8')
-    # black_pixels_bottom = np.zeros(shape=(n_missing_pixels_bottom, scaled_image_width, 3), dtype='uint8')
-    
-    # Uncrop the mask by adding the black pixels to all sides of the scaled and cropped mask.
-    tmp = np.hstack([black_pixels_left, scaled_mask, black_pixels_right])
-
-    if n_missing_pixels_bottom >= 0:
-        black_pixels_bottom = np.zeros(shape=(n_missing_pixels_bottom, scaled_image_width, 3), dtype='uint8')
-        uncropped_mask = np.vstack([black_pixels_top, tmp, black_pixels_bottom])
-    else:
-        # uncropped_mask = np.vstack([black_pixels_top, tmp])[:n_missing_pixels_bottom, :]
-        uncropped_mask = np.vstack([black_pixels_top, tmp[:n_missing_pixels_bottom, :]])
-
-    # uncropped_mask = np.vstack([black_pixels_top, tmp, black_pixels_bottom])
-    
-    # Rescale (i.e., resize) the uncropped mask back to the resolution of the original image.
-    uncropped_and_rescaled_mask = Image.fromarray(uncropped_mask).resize((original_image_width, original_image_height), 
-                                                                            resample=Image.BICUBIC)
-    
+    # Rescale the uncropped mask back to the resolution of the original image.
+    uncropped_and_rescaled_mask = mask_scaled.resize((original_image_width, original_image_height), 
+                                                      resample=Image.CUBIC)
     return uncropped_and_rescaled_mask
 
 
@@ -214,8 +181,7 @@ def _todict(matobj):
             dict[strg] = elem
     return dict
 
-
-def vis_rendered_face_list(args, data_root: str, output_root=None):
+def vis_rendered_face_list(args, data_root: str, output_root=None, need_pose=True):
     """Render the face by using the matrix generated by Deep3DFace_Pytorch repo
 
     Args:
@@ -226,7 +192,10 @@ def vis_rendered_face_list(args, data_root: str, output_root=None):
     import render_utils
     from easydict import EasyDict
 
-    opt = EasyDict(center=112.0, focal=1015.0, z_near=5.0, z_far=15.0)
+    if need_pose:
+        opt = EasyDict(center=112.0, focal=1015.0, z_near=5.0, z_far=15.0)
+    else:
+        opt = EasyDict(center=256.0, focal=1015.0, z_near=5.0, z_far=15.0)
 
     renderer = render_utils.MyMeshRender(opt)
 
@@ -245,31 +214,41 @@ def vis_rendered_face_list(args, data_root: str, output_root=None):
     prog_bar = tqdm(matrix_file_list)
     for matrix_file in prog_bar:
         count += 1
-        # if count < 80:
-        #     continue
         prog_bar.set_description(matrix_file)
 
         face_params_dict = loadmat(matrix_file)
         transform_params = loadmat2(matrix_file)['transform_params']
 
-        coeff_matrix = torch.FloatTensor(get_coeff_vector(face_params_dict))
+        if count == 0:
+            first_id_param = face_params_dict['id']
+        # face_params_dict['id'] = first_id_param
 
         curr_face_vertex = gen_face_vertex[count:count+1, :]
+        face_params_dict['exp'] = curr_face_vertex # use as expression
 
-        ret = renderer(coeff_matrix, curr_face_vertex)
+        if need_pose:
+            coeff_matrix = torch.FloatTensor(get_coeff_vector(face_params_dict))
+        else:
+            coeff_matrix = torch.FloatTensor(get_coeff_vector(face_params_dict, reset_list=['trans', 'angle']))
+
+        ret = renderer(coeff_matrix, None)
         image = renderer.compute_rendered_image()[0]
 
-        file_name = osp.basename(matrix_file).replace(".mat", ".png")
-
-        scaled_image = rescale_mask(image, transform_params)
+        ## Rescale the image to original size
+        scaled_image = rescale_mask_V2(image, transform_params)
 
         ## Get the binary image
         # scaled_image = np.asarray(scaled_image)
         # masked_image = get_masked_region(scaled_image)
 
         if output_root is not None:
+            file_name = osp.basename(matrix_file).replace(".mat", ".png")
             # cv2.imwrite(osp.join(output_root, file_name), masked_image)
-            scaled_image.save(osp.join(output_root, file_name))
+            if need_pose:
+                scaled_image.save(osp.join(output_root, file_name))
+            else:
+                cv2.imwrite(osp.join(output_root, file_name), image[..., ::-1])
+
 
 
 if __name__ == "__main__":
@@ -277,21 +256,19 @@ if __name__ == "__main__":
 
     args = parse_args()
     
-    video_name = args.video_name
+    data_root = osp.join(args.data_root, args.video_name, "deep3dface")
+    output_root = args.output_root
 
-    data_root = osp.join(args.data_root, video_name, "deep3dface")
-
-    # output_root = \
-    #     f"/home/haimingzhang/Research/Programming/cv-fighter/HDTF_Dataset/HDTF_preprocessed/{video_name}/mouth_mask"
-    output_root = \
-        f"../../HDTF_preprocessed/{video_name}/deep3dface512"
-    
-    output_root = \
-        f"../debug2"
-
-    if osp.exists(output_root):
-        print("Delete the output folder...")
-        shutil.rmtree(output_root)
+    # if osp.exists(output_root):
+    #     print("Delete the output folder...")
+    #     shutil.rmtree(output_root)
     os.makedirs(output_root, exist_ok=True)
 
-    vis_rendered_face_list(args, data_root, output_root=output_root)
+    vis_rendered_face_list(args, data_root, output_root=output_root, need_pose=args.need_pose)
+
+
+    ## Move the audio file
+    audio_file_path = args.gen_vertex_path.replace(".npy", ".wav")
+    command = f"cp {audio_file_path} {output_root}"
+    print(command)
+    subprocess.call(command, shell=True)
