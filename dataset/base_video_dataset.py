@@ -59,7 +59,7 @@ class BaseVideoDataset(Dataset):
         self.fetch_stride = kwargs.get("fetch_stride", 50)
         self.video_fps = kwargs.get("video_fps", 25)
         self.audio_sample_rate = kwargs.get("audio_sample_rate", 16000)
-        self.target_image_size = (192, 192)
+        self.target_image_size = kwargs.get("target_image_size", 192)
 
         self.build_dataset()
 

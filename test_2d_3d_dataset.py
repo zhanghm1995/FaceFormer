@@ -16,14 +16,13 @@ def test_2d_3d_dataset():
     config = OmegaConf.load("./config/face_3dmm_motion_mouth_mask_pix2pixhd.yaml")
 
     dataset_config = config['dataset']
-    dataset_config['dataset_name'] = "Face2D3DDataset"
 
-    train_dataloader = get_dataset(config['dataset'], split="voca_train", shuffle=True)
+    train_dataloader = get_dataset(dataset_config, split="voca_train", shuffle=True)
     print(len(train_dataloader))
 
     dataset = next(iter(train_dataloader))
 
-    print(dataset["video_name"])
+    print(dataset["gt_face_image"].shape)
 
     for i, dataset in tqdm(enumerate(train_dataloader)):
         print(dataset["video_name"])

@@ -15,11 +15,12 @@ lr_decay_step: 20
 lr_decay_rate: 0.8
 
 dataset:
-  dataset_name: Face2D3DDataset
+  dataset_name: FaceDeep3DDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
   fetch_length: 100
   fetch_stride: 100
+  target_image_size: 512
   number_workers: 6
   need_origin_face_3d_param: True
 

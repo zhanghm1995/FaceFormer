@@ -61,6 +61,9 @@ def get_dataset(config, split, shuffle=None):
     if config.dataset_name == "Face2D3DDataset":
         from .face_2d_3d_dataset import Face2D3DDataset
         dataset = Face2D3DDataset(split=split, **config)
+    elif config.dataset_name == "FaceDeep3DDataset":
+        from .face_deep3d_dataset import FaceDeep3DDataset
+        dataset = FaceDeep3DDataset(split=split, **config)
     else:
         dataset_name = config.dataset_name
         raise ValueError(f"{dataset_name} dataset has not been defined")
