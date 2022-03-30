@@ -60,25 +60,30 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         self.criterion = nn.MSELoss()
     
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), 
-                                     lr=self.config.lr, 
-                                     weight_decay=self.config.wd,
-                                     betas=(0.9, 0.999), 
-                                     eps=1e-06)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.config.lr_decay_step,
+        optimizer_face_3dmm = torch.optim.Adam(filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 
+                                               lr=1e-5)
+        
+        optimizer_G = torch.optim.Adam(filter(lambda p: p.requires_grad, self.face_generator.parameters()), 
+                                       lr=self.config.lr, 
+                                       weight_decay=self.config.wd,
+                                       betas=(0.9, 0.999), 
+                                       eps=1e-06)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size=self.config.lr_decay_step,
                                                     gamma=self.config.lr_decay_rate)
 
-        optimizer_d = torch.optim.Adam(
+        optimizer_D = torch.optim.Adam(
             self.netD.parameters(), lr=self.config.lr, betas=(0.9, 0.999))
-        return ({"optimizer": optimizer, "lr_scheduler": scheduler},
-                {'optimizer': optimizer_d})
+        
+        return ({"optimizer": optimizer_face_3dmm},
+                {"optimizer": optimizer_G, "lr_scheduler": scheduler},
+                {'optimizer': optimizer_D})
 
     def forward(self, batch):
         ## Forward the Face3DMMFormer
         pred_expression = self.face3dmmformer_model(
             batch, teacher_forcing=False, return_loss=False) # (B, S, 64)
         
-        face_coeffs = batch['gt_face_coeffs'] # (B, S, 257)
+        face_coeffs = batch['gt_face_origin_3d_params'] # (B, S, 257)
         face_coeffs[:, :, 80:144] = pred_expression
         
         face_coeffs = face_coeffs.reshape((-1, 257)) # (B*S, 257)

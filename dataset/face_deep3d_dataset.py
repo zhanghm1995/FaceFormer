@@ -120,7 +120,8 @@ class FaceDeep3DDataset(Face2D3DDataset):
         data_dict['video_name']  = choose_video
         data_dict['gt_face_image'] = gt_img_seq_tensor # (fetch_length, 3, H, W)
         data_dict['gt_mouth_mask_image'] = gt_img_mouth_mask_tensor # (fetch_length, 1, H, W)
-
+        data_dict['exp_base'] = torch.FloatTensor(self.facemodel.exp_base)
+        
         if self.need_origin_face_3d_param:
             # (fetch_length, 257)
             data_dict['gt_face_origin_3d_params'] = torch.from_numpy(gt_face_origin_3d_param.astype(np.float32))
