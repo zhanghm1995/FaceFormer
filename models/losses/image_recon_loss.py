@@ -92,7 +92,7 @@ class GANLoss(nn.Module):
             loss = 0
             for input_i in input:
                 pred = input_i[-1]
-                target_tensor = self.get_target_tensor(pred, target_is_real)
+                target_tensor = self.get_target_tensor(pred, target_is_real).to(pred)
                 loss += self.loss(pred, target_tensor)
             return loss
         else:            
@@ -138,7 +138,7 @@ class VGGLoss(nn.Module):
         super(VGGLoss, self).__init__()        
         self.vgg = Vgg19().cuda()
         self.criterion = nn.L1Loss()
-        self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]        
+        self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]
 
     def forward(self, x, y):              
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)

@@ -33,6 +33,8 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## Define the model
         self.face3dmmformer_model = Face3DMMOneHotFormer(config['Face3DMMFormer'])
 
+        self.mouth_mask_weight = self.face3dmmformer_model.mouth_mask_weight
+
         ## Define the Generator
         self.face_generator = define_G(3, 3, 64, "global", 4, 9, 1, 3, "instance")
 
@@ -54,28 +56,29 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         ## Define criterions
         self.criterionPhoto = photo_loss
-        self.criterionVGG = GANLoss
-        self.criterionGAN = VGGLoss
+        self.criterionVGG = VGGLoss()
+        self.criterionGAN = GANLoss()
 
         self.criterion = nn.MSELoss()
     
     def configure_optimizers(self):
-        optimizer_face_3dmm = torch.optim.Adam(filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 
-                                               lr=1e-5)
+        # optimizer_face_3dmm = torch.optim.Adam(filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 
+        #                                        lr=1e-5)
         
-        optimizer_G = torch.optim.Adam(filter(lambda p: p.requires_grad, self.face_generator.parameters()), 
-                                       lr=self.config.lr, 
-                                       weight_decay=self.config.wd,
-                                       betas=(0.9, 0.999), 
-                                       eps=1e-06)
+        optimizer_G = torch.optim.Adam(
+            [{'params': filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 'lr': 1e-4},
+             {'params': filter(lambda p: p.requires_grad, self.face_generator.parameters())}], 
+             lr=self.config.lr, 
+             weight_decay=self.config.wd,
+             betas=(0.9, 0.999), 
+             eps=1e-06)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size=self.config.lr_decay_step,
                                                     gamma=self.config.lr_decay_rate)
 
         optimizer_D = torch.optim.Adam(
             self.netD.parameters(), lr=self.config.lr, betas=(0.9, 0.999))
         
-        return ({"optimizer": optimizer_face_3dmm},
-                {"optimizer": optimizer_G, "lr_scheduler": scheduler},
+        return ({"optimizer": optimizer_G, "lr_scheduler": scheduler},
                 {'optimizer': optimizer_D})
 
     def forward(self, batch):
@@ -101,23 +104,28 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         return {'generated_face': face_2d_img}
     
     def generator_step(self, batch):
+        ## 1) Forward the network
+        self.model_output = self(batch)
+
         ## ============= Train the Generator ============== ##
         ## 2) Compute the loss
         loss_dict = dict()
         ## 3D face loss
-        batch, seq_len = vertice_out.shape[:2]
+        vertice = batch['face_vertex'] # GT
+        batch_size, seq_len = vertice.shape[:2]
+
         ## If consider mouth region weight
-        vertice_out = vertice_out.reshape((batch, seq_len, -1, 3))
-        vertice = vertice.reshape((batch, seq_len, -1, 3))
+        vertice_out = self.pred_vertex.reshape((batch_size, seq_len, -1, 3))
+        vertice = vertice.reshape((batch_size, seq_len, -1, 3))
 
         loss_3d = torch.sum((vertice_out - vertice)**2, dim=-1) * self.mouth_mask_weight[None, ...].to(vertice)
         loss_3d = torch.mean(loss_3d)
         loss_dict['loss_3d'] = loss_3d
 
         ## Get the images
-        input_label = self.pred_face
+        input_image = self.pred_face
         fake_image = self.model_output['generated_face']
-        real_image = batch['gt_face_image']
+        real_image = batch['gt_face_image'].reshape(fake_image.shape)
 
         ## photo loss
         face_mask = self.pred_mask
@@ -125,42 +133,39 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
             face_mask, _, _ = self.renderer(self.pred_vertex, self.facemodel.front_face_buf)
 
         face_mask = face_mask.detach()
-        self.loss_color = self.config.w_color * self.criterionPhoto(
-            self.pred_face, real_image, face_mask)
+        loss_photo = self.criterionPhoto(input_image, real_image, face_mask)
+        loss_dict['loss_photo'] = self.config.w_color * loss_photo
 
         ## GAN loss
-        pred_fake = self.netD.forward(torch.cat((input_label, fake_image), dim=1))        
+        pred_fake = self.netD.forward(torch.cat((input_image, fake_image), dim=1))        
         loss_G_GAN = self.criterionGAN(pred_fake, True)
         loss_dict['loss_G_GAN'] = loss_G_GAN
 
         ## VGG loss
-        loss_G_VGG = self.criterionVGG(fake_image, real_image) * self.opt.lambda_feat
+        loss_G_VGG = self.criterionVGG(fake_image, real_image)
         loss_dict['loss_G_VGG'] = self.config.w_G_VGG * loss_G_VGG
         
         ## FM loss
 
-        loss_total = sum([value for value in loss_dict.values()])
+        loss_total = loss_dict['loss_3d'] + loss_dict['loss_photo'] + loss_dict['loss_G_GAN'] + loss_dict['loss_G_VGG']
         return loss_total
 
     def discriminator_step(self, batch):
         ## ============= Train the Discriminator ============== ##
-        input_label = self.pred_face
-        real_image = batch['gt_face_image']
+        input_image = self.pred_face
         fake_image = self.model_output['generated_face']
+        real_image = batch['gt_face_image'].reshape(fake_image.shape)
 
-        pred_real = self.netD.forward(torch.cat((input_label, real_image.detach()), dim=1))
+        pred_real = self.netD.forward(torch.cat((input_image, real_image.detach()), dim=1))
         loss_D_real = self.criterionGAN(pred_real, True)
 
-        pred_fake = self.netD.forward(torch.cat((input_label, fake_image.detach()), dim=1))
+        pred_fake = self.netD.forward(torch.cat((input_image, fake_image.detach()), dim=1))
         loss_D_fake = self.criterionGAN(pred_fake, False)
 
         loss_D = 0.5 * (loss_D_real + loss_D_fake)
         return loss_D
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        ## 1) Forward the network
-        self.model_output = self(batch)
-
         if optimizer_idx == 0:
             loss = self.generator_step(batch)
         
