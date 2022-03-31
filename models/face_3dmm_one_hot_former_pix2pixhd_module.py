@@ -92,11 +92,12 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         # face_coeffs[:, :, 80:144] = pred_expression
         
         face_coeffs = face_coeffs.reshape((-1, 257)) # (B*S, 257)
+        pred_expression = pred_expression.reshape((-1, 64))
 
         self.facemodel.to(self.device)
         ## Forward the renderer
         self.pred_shape, self.pred_vertex, self.pred_tex, self.pred_color, self.pred_lm = \
-            self.facemodel.compute_for_render(face_coeffs)
+            self.facemodel.compute_for_render(face_coeffs, pred_exp=pred_expression)
         self.pred_mask, _, self.pred_face = self.face_renderer(
             self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
         
@@ -156,8 +157,10 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
     def discriminator_step(self, batch):
         ## ============= Train the Discriminator ============== ##
+        model_output = self.forward(batch)
+        
+        fake_image = model_output['generated_face']
         input_image = self.pred_face
-        fake_image = self.model_output['generated_face']
         real_image = batch['gt_masked_face_image'].reshape(fake_image.shape)
 
         pred_real = self.netD.forward(torch.cat((input_image, real_image.detach()), dim=1))
