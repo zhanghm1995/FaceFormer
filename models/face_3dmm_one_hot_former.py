@@ -109,7 +109,7 @@ class Face3DMMOneHotFormer(nn.Module):
             mouth_mask[binary_mouth_mask] = 1.8
             self.mouth_mask_weight = torch.from_numpy(np.expand_dims(mouth_mask, 0)) # (1, 35709)
 
-    def forward(self, batch, criterion=None, teacher_forcing=True, return_loss=True):
+    def forward(self, batch, criterion=None, teacher_forcing=True, return_loss=True, return_exp=False):
         audio = batch['raw_audio']
         template = batch['template']
         vertice = batch['face_vertex']
@@ -158,8 +158,9 @@ class Face3DMMOneHotFormer(nn.Module):
 
         if self.config.vertice_dim == 64:
             ## in this case, we predict the expression parameters
-            exp_base = batch['exp_base'] # (1, 3N, 64)
-            # vertice_out = template + torch.einsum('ijk,iak->iaj', exp_base, vertice_out)
+            if not return_exp:
+                exp_base = batch['exp_base'] # (1, 3N, 64)
+                vertice_out = template + torch.einsum('ijk,iak->iaj', exp_base, vertice_out)
         else:
             vertice_out = vertice_out + template
         

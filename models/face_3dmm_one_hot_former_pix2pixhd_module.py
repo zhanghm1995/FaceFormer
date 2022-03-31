@@ -87,7 +87,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
     def forward(self, batch):
         ## Forward the Face3DMMFormer
         pred_expression = self.face3dmmformer_model(
-            batch, teacher_forcing=False, return_loss=False) # (B, S, 64)
+            batch, teacher_forcing=False, return_loss=False, return_exp=True) # (B, S, 64)
         
         face_coeffs = batch['gt_face_origin_3d_params'] # (B, S, 257)
         # face_coeffs[:, :, 80:144] = pred_expression

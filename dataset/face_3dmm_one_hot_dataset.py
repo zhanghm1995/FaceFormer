@@ -103,7 +103,7 @@ class Face3DMMOneHotDataset(BaseVideoDataset):
         audio_seq = np.squeeze(self.audio_processor(audio_seq, sampling_rate=16000).input_values)
 
         ## Get the GT 3D face parameters
-        gt_face_3d_params_arr = self._get_face_3d_params(choose_video, start_idx)
+        gt_face_3d_params_arr, _ = self._get_face_3d_params(choose_video, start_idx)
 
         ## Get the template info
         template_face, id_coeff = self._get_template(choose_video)
