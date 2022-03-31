@@ -121,7 +121,7 @@ class FaceDeep3DDataset(Face2D3DDataset):
 
         ## Get the GT 3D face vertex ()
         gt_face_3d_vertex = self.facemodel.compute_shape(
-            id_coeff=id_coeff, exp_coeff=gt_face_3d_params_arr)
+            id_coeff=gt_face_origin_3d_param[:, :80], exp_coeff=gt_face_3d_params_arr)
         
         ## Get the 2D face image
         img_tensor_dict = self.read_image_sequence(

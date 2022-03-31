@@ -7,6 +7,7 @@ Email: haimingzhang@link.cuhk.edu.cn
 Description: PL module to train model
 '''
 
+from collections import OrderedDict
 import torch
 import numpy as np
 import os
@@ -94,7 +95,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         self.facemodel.to(self.device)
         ## Forward the renderer
-        self.pred_vertex, self.pred_tex, self.pred_color, self.pred_lm = \
+        self.pred_shape, self.pred_vertex, self.pred_tex, self.pred_color, self.pred_lm = \
             self.facemodel.compute_for_render(face_coeffs)
         self.pred_mask, _, self.pred_face = self.face_renderer(
             self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
@@ -110,13 +111,13 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         ## ============= Train the Generator ============== ##
         ## 2) Compute the loss
-        loss_dict = dict()
+        loss_dict = OrderedDict()
         ## 3D face loss
         vertice = batch['face_vertex'] # GT
         batch_size, seq_len = vertice.shape[:2]
 
         ## If consider mouth region weight
-        vertice_out = self.pred_vertex.reshape((batch_size, seq_len, -1, 3))
+        vertice_out = self.pred_shape.reshape((batch_size, seq_len, -1, 3))
         vertice = vertice.reshape((batch_size, seq_len, -1, 3))
 
         loss_3d = torch.sum((vertice_out - vertice)**2, dim=-1) * self.mouth_mask_weight[None, ...].to(vertice)
@@ -126,15 +127,16 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## Get the images
         input_image = self.pred_face
         fake_image = self.model_output['generated_face']
-        real_image = batch['gt_face_image'].reshape(fake_image.shape)
+        real_image = batch['gt_masked_face_image'].reshape(fake_image.shape)
 
         ## photo loss
-        face_mask = self.pred_mask
-        if self.config.use_crop_face:
-            face_mask, _, _ = self.renderer(self.pred_vertex, self.facemodel.front_face_buf)
+        # face_mask = self.pred_mask
+        # if self.config.use_crop_face:
+        #     face_mask, _, _ = self.renderer(self.pred_vertex, self.facemodel.front_face_buf)
 
-        face_mask = face_mask.detach()
-        loss_photo = self.criterionPhoto(input_image, real_image, face_mask)
+        # face_mask = face_mask.detach()
+        # loss_photo = self.criterionPhoto(input_image, real_image, face_mask)
+        loss_photo = F.l1_loss(input_image, real_image)
         loss_dict['loss_photo'] = self.config.w_color * loss_photo
 
         ## GAN loss
@@ -149,13 +151,14 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## FM loss
 
         loss_total = loss_dict['loss_3d'] + loss_dict['loss_photo'] + loss_dict['loss_G_GAN'] + loss_dict['loss_G_VGG']
+        self.log_dict(loss_dict, prog_bar=True)
         return loss_total
 
     def discriminator_step(self, batch):
         ## ============= Train the Discriminator ============== ##
         input_image = self.pred_face
         fake_image = self.model_output['generated_face']
-        real_image = batch['gt_face_image'].reshape(fake_image.shape)
+        real_image = batch['gt_masked_face_image'].reshape(fake_image.shape)
 
         pred_real = self.netD.forward(torch.cat((input_image, real_image.detach()), dim=1))
         loss_D_real = self.criterionGAN(pred_real, True)
