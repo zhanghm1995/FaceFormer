@@ -34,7 +34,9 @@ def save_video(image, output_video_fname, image_size=512,
     print("Save video done!")
 
 
-def save_image_array_to_video(image_array, output_dir, name=None, fps=25, audio_array=None, audio_sample_rate=16000):
+def save_image_array_to_video(image_array, output_dir, name=None, fps=25,
+                              need_change_channel_order=False,
+                              audio_array=None, audio_sample_rate=16000):
     """Save the image array into video
 
     Args:
@@ -52,6 +54,8 @@ def save_image_array_to_video(image_array, output_dir, name=None, fps=25, audio_
         tmp_video_file = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=output_dir)
         for frame in range(image_array.shape[1]):
             image_numpy = tensor2im(image_array[i][frame])
+            if need_change_channel_order:
+                image_numpy = image_numpy[..., ::-1]
             
             if frame == 0:
                 img_shape = image_numpy.shape[:2]

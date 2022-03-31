@@ -22,6 +22,7 @@ from .nn import define_G, define_D
 from .losses import photo_loss, VGGLoss, GANLoss
 from .bfm import ParametricFaceModel
 from .nvdiffrast_utils import MeshRenderer
+from utils.save_data import save_image_array_to_video
 
 
 class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
@@ -157,9 +158,9 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
     def discriminator_step(self, batch):
         ## ============= Train the Discriminator ============== ##
-        model_output = self.forward(batch)
+        self.model_output = self.forward(batch)
         
-        fake_image = model_output['generated_face']
+        fake_image = self.model_output['generated_face']
         input_image = self.pred_face
         real_image = batch['gt_masked_face_image'].reshape(fake_image.shape)
 
@@ -170,6 +171,9 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         loss_D_fake = self.criterionGAN(pred_fake, False)
 
         loss_D = 0.5 * (loss_D_real + loss_D_fake)
+        self.log('Disc/loss_D', loss_D, on_step=True, on_epoch=True)
+        self.log('Disc/loss_D_real', loss_D_real, on_step=True, on_epoch=True)
+        self.log('Disc/loss_D_fake', loss_D_fake, on_step=True, on_epoch=True)
         return loss_D
 
     def training_step(self, batch, batch_idx, optimizer_idx):
@@ -178,12 +182,16 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         
         if optimizer_idx == 1:
             loss = self.discriminator_step(batch)
+        
+        if batch_idx % 1 == 0:
+            generate_image = self.model_output['generated_face'][None, ...].detach()
+            save_dir = osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch:03d}")
+            save_image_array_to_video(generate_image, 
+                                      save_dir, 
+                                      name=batch_idx)
             
         return loss
     
-    def compute_loss(self, pred, target):
-        pass
-        
     # def validation_step(self, batch, batch_idx):
     #     audio = batch['raw_audio']
     #     template = torch.zeros((audio.shape[0], 64)).to(audio)
