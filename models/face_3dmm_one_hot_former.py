@@ -14,6 +14,7 @@ import numpy as np
 import copy
 import math
 from wav2vec import Wav2Vec2Model
+import pytorch_lightning as pl
 
 
 # Temporal Bias, inspired by ALiBi: https://github.com/ofirpress/attention_with_linear_biases
@@ -72,9 +73,9 @@ class PeriodicPositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class Face3DMMOneHotFormer(nn.Module):
-    def __init__(self, args):
-        super(Face3DMMOneHotFormer, self).__init__()
+class Face3DMMOneHotFormer(pl.LightningModule):
+    def __init__(self, args, **kwargs):
+        super().__init__()
         """
         audio: (batch_size, raw_wav)
         template: (batch_size, V*3)
@@ -115,7 +116,7 @@ class Face3DMMOneHotFormer(nn.Module):
         vertice = batch['face_vertex']
         one_hot = batch['one_hot']
 
-        self.device = audio.device
+        device = audio.device
         # tgt_mask: :math:`(T, T)`.
         # memory_mask: :math:`(T, S)`.
         template = template.unsqueeze(1) # (1,1, V*3)
@@ -136,8 +137,8 @@ class Face3DMMOneHotFormer(nn.Module):
             vertice_input = self.vertice_map(vertice_input)
             vertice_input = vertice_input + style_emb
             vertice_input = self.PPE(vertice_input)
-            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-            memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+            memory_mask = enc_dec_mask(device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
             vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
         else:
@@ -148,8 +149,8 @@ class Face3DMMOneHotFormer(nn.Module):
                     vertice_input = self.PPE(style_emb)
                 else:
                     vertice_input = self.PPE(vertice_emb)
-                tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-                memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+                tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+                memory_mask = enc_dec_mask(device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
                 vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
                 vertice_out = self.vertice_map_r(vertice_out)
                 new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
@@ -185,7 +186,7 @@ class Face3DMMOneHotFormer(nn.Module):
         template = batch['template']
         one_hot = batch['one_hot']
 
-        self.device = audio.device
+        device = audio.device
 
         template = template.unsqueeze(1) # (1,1, V*3)
         obj_embedding = self.obj_vector(one_hot)
@@ -204,8 +205,8 @@ class Face3DMMOneHotFormer(nn.Module):
             else:
                 vertice_input = self.PPE(vertice_emb)
 
-            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-            memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+            tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+            memory_mask = enc_dec_mask(device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
             vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
             new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)

@@ -8,6 +8,7 @@ Description: PL module to train model
 '''
 
 from collections import OrderedDict
+from omegaconf import OmegaConf
 import torch
 import numpy as np
 import os
@@ -17,12 +18,46 @@ from scipy.io import wavfile
 from torch.nn import functional as F 
 import pytorch_lightning as pl
 from PIL import Image
+from torch.nn import init
 from .face_3dmm_one_hot_former import Face3DMMOneHotFormer
+from .face_3dmm_one_hot_former_module import Face3DMMOneHotFormerModule
 from .nn import define_G, define_D
 from .losses import photo_loss, VGGLoss, GANLoss
 from .bfm import ParametricFaceModel
 from .nvdiffrast_utils import MeshRenderer
 from utils.save_data import save_image_array_to_video
+
+
+def init_weights(net, init_type='normal', init_gain=0.02):
+    """Initialize network weights.
+    Parameters:
+        net (network)   -- network to be initialized
+        init_type (str) -- the name of an initialization method: normal | xavier | kaiming | orthogonal
+        init_gain (float)    -- scaling factor for normal, xavier and orthogonal.
+    We use 'normal' in the original pix2pix and CycleGAN paper. But xavier and kaiming might
+    work better for some applications. Feel free to try yourself.
+    """
+    def init_func(m):  # define the initialization function
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            if init_type == 'normal':
+                init.normal_(m.weight.data, 0.0, init_gain)
+            elif init_type == 'xavier':
+                init.xavier_normal_(m.weight.data, gain=init_gain)
+            elif init_type == 'kaiming':
+                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                init.orthogonal_(m.weight.data, gain=init_gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+            if hasattr(m, 'bias') and m.bias is not None:
+                init.constant_(m.bias.data, 0.0)
+        elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+            init.normal_(m.weight.data, 1.0, init_gain)
+            init.constant_(m.bias.data, 0.0)
+
+    print('initialize network with %s' % init_type)
+    net.apply(init_func)
 
 
 class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
@@ -31,24 +66,28 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
 
         self.config = config
 
+        ## Define the model
+        self.face3dmmformer_model = Face3DMMOneHotFormerModule(config)
+
         self.save_hyperparameters()
 
-        ## Define the model
-        self.face3dmmformer_model = Face3DMMOneHotFormer(config['Face3DMMFormer'])
+        face3dmm_config = OmegaConf.load("config/face_3dmm_expression_mouth_mask.yaml")
 
         if self.config.pretrained_expression_net is not None:
-            pretrained_parameters = torch.load(self.config.pretrained_expression_net)
-            self.face3dmmformer_model.load_state_dict(pretrained_parameters, strict=False)
-            print("[WARNING] load pretrained expression net!")
+            print(f"[WARNING] load pretrained expression net from {self.config.pretrained_expression_net}!")
+            self.face3dmmformer_model = self.face3dmmformer_model.load_from_checkpoint(
+                self.config.pretrained_expression_net, config=face3dmm_config)
 
-        self.mouth_mask_weight = self.face3dmmformer_model.mouth_mask_weight
+        self.mouth_mask_weight = self.face3dmmformer_model.model.mouth_mask_weight
 
         ## Define the Generator
-        self.face_generator = define_G(3, 3, 64, "global", 4, 9, 1, 3, "instance")
+        self.face_generator = define_G(3, 3, 64, "local")
 
         ## Define the Discriminator
-        self.netD = define_D(6, 64, 3, norm="instance", use_sigmoid=False, num_D=2,
-                             getIntermFeat=False)
+        self.netD = define_D(input_nc=6, ndf=64, n_layers_D=3, num_D=2, getIntermFeat=False)
+
+        init_weights(self.face_generator)
+        init_weights(self.netD)
 
         opt = self.config['FaceRendererParameters']
 
@@ -74,17 +113,17 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         #                                        lr=1e-5)
         
         optimizer_G = torch.optim.Adam(
-            [{'params': filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 'lr': 1e-4},
+            [{'params': filter(lambda p: p.requires_grad, self.face3dmmformer_model.parameters()), 'lr': 1e-6},
              {'params': filter(lambda p: p.requires_grad, self.face_generator.parameters())}], 
              lr=self.config.lr, 
              weight_decay=self.config.wd,
-             betas=(0.9, 0.999), 
+             betas=(0.5, 0.999), 
              eps=1e-06)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size=self.config.lr_decay_step,
                                                     gamma=self.config.lr_decay_rate)
 
         optimizer_D = torch.optim.Adam(
-            self.netD.parameters(), lr=self.config.lr, betas=(0.9, 0.999))
+            self.netD.parameters(), lr=self.config.lr, betas=(0.5, 0.999))
         
         return ({"optimizer": optimizer_G, "lr_scheduler": scheduler},
                 {'optimizer': optimizer_D})
@@ -114,6 +153,11 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         # image_numpy = image_numpy.astype(np.uint8)
         # image_pil = Image.fromarray(image_numpy)
         # image_pil.save("./debug.png")
+
+        save_image_array_to_video(self.pred_face[None, ...].detach(), 
+                                  "./debug",
+                                  name=self.current_epoch,
+                                  need_change_channel_order=True)
         
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
@@ -155,7 +199,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         loss_dict['loss_photo'] = self.config.w_color * loss_photo
 
         ## GAN loss
-        pred_fake = self.netD.forward(torch.cat((input_image, fake_image), dim=1))        
+        pred_fake = self.netD(torch.cat((input_image, fake_image), dim=1))        
         loss_G_GAN = self.criterionGAN(pred_fake, True)
         loss_dict['loss_G_GAN'] = loss_G_GAN
 
@@ -164,7 +208,6 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         loss_dict['loss_G_VGG'] = self.config.w_G_VGG * loss_G_VGG
         
         ## FM loss
-
         loss_total = loss_dict['loss_3d'] + loss_dict['loss_photo'] + loss_dict['loss_G_GAN'] + loss_dict['loss_G_VGG']
 
         self.log('Gen/loss_total', loss_total, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
@@ -183,10 +226,10 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         input_image = self.pred_face
         real_image = batch['gt_masked_face_image'].reshape(fake_image.shape)
 
-        pred_real = self.netD.forward(torch.cat((input_image, real_image.detach()), dim=1))
+        pred_real = self.netD(torch.cat((input_image, real_image.detach()), dim=1))
         loss_D_real = self.criterionGAN(pred_real, True)
 
-        pred_fake = self.netD.forward(torch.cat((input_image, fake_image.detach()), dim=1))
+        pred_fake = self.netD(torch.cat((input_image, fake_image.detach()), dim=1))
         loss_D_fake = self.criterionGAN(pred_fake, False)
 
         loss_D = 0.5 * (loss_D_real + loss_D_fake)
@@ -207,8 +250,9 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
             generate_image = self.model_output['generated_face'][None, ...].detach()
             save_dir = osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch:03d}")
             save_image_array_to_video(generate_image, 
-                                      save_dir, 
-                                      name=batch_idx)
+                                      save_dir,
+                                      name=batch_idx,
+                                      need_change_channel_order=True)
             
         return loss
     

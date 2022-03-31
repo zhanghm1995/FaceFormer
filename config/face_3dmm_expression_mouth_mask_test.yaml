@@ -4,7 +4,7 @@ test_mode: False
 
 model_name: Face3DMMOneHotFormer
 
-checkpoint: null
+checkpoint: work_dir/epoch=90-step=33942.ckpt
 
 max_epochs: 200
 check_val_every_n_epoch: 1
@@ -18,9 +18,9 @@ dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
-  fetch_length: 600
-  fetch_stride: 600
-  audio_path: data/HDTF_preprocessed/WRA_CathyMcMorrisRodgers1_000/WRA_CathyMcMorrisRodgers1_000.wav
+  fetch_length: 250
+  fetch_stride: 250
+  audio_path: data/HDTF_preprocessed/WDA_KathyCastor_000/WDA_KathyCastor_000.wav
   video_name: WDA_MartinHeinrich_000
   training_split: voca_train
   number_workers: 6

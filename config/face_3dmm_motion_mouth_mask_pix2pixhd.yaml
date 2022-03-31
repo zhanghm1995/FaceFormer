@@ -5,7 +5,7 @@ test_mode: False
 model_name: Face3DMMOneHotFormerPix2PixHDModule
 
 checkpoint: null
-pretrained_expression_net: work_dir/train_face_3dmm_expression_mouth_mask/lightning_logs/version_0/checkpoints_test/epoch=20-step=7643.ckpt
+pretrained_expression_net: work_dir/train_face_3dmm_expression_mouth_mask/lightning_logs/version_0/checkpoints_test/epoch=73-step=26935.ckpt
 
 max_epochs: 200
 check_val_every_n_epoch: 1
@@ -19,8 +19,8 @@ dataset:
   dataset_name: FaceDeep3DDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
-  fetch_length: 75
-  fetch_stride: 75
+  fetch_length: 50
+  fetch_stride: 50
   target_image_size: 512
   number_workers: 6
   need_origin_face_3d_param: True
@@ -44,5 +44,5 @@ FaceRendererParameters:
 
 
 use_crop_face: False
-w_color: 1.0 # image recon L1 loss weight
+w_color: 10.0 # image recon L1 loss weight
 w_G_VGG: 10.0 # VGG loss weight

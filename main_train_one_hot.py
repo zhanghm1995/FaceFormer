@@ -21,10 +21,10 @@ from models import get_model
 
 def parse_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='./config/face_3dmm_config.yaml', help='the config file path')
+    parser.add_argument('--cfg', type=str, default='./config/face_3dmm_expression_mouth_mask.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
     parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="work_dir2/debug")
-    parser.add_argument('--checkpoint', type=str, default=None, help="the pretrained checkpoint path")
+    parser.add_argument('--checkpoint', type=str, default="work_dir/train_face_3dmm_expression_mouth_mask/lightning_logs/version_0/checkpoints_test/epoch=73-step=26935.ckpt", help="the pretrained checkpoint path")
     parser.add_argument('--test_mode', action='store_true', help="whether is a test mode")
 
     args = parser.parse_args()
@@ -55,6 +55,9 @@ if config.checkpoint is None:
 else:
     print(f"[WARNING] Load pretrained model from {config.checkpoint}")
     model = model.load_from_checkpoint(config.checkpoint, config=config)
+
+    # pretrained_parameters = torch.load(config.checkpoint)
+    # model.model.load_state_dict(pretrained_parameters, strict=True)
 
 if not config['test_mode']:
     print(f"{'='*25} Start Traning, Good Luck! {'='*25}")

@@ -41,6 +41,13 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
                                                     gamma=self.config.lr_decay_rate)
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
+    def forward(self, batch, criterion=None, teacher_forcing=True, return_loss=True, return_exp=False):
+        return self.model(batch, 
+                          criterion=criterion, 
+                          teacher_forcing=teacher_forcing, 
+                          return_loss=return_loss, 
+                          return_exp=return_exp)
+        
     def training_step(self, batch, batch_idx):
         audio = batch['raw_audio']
 
