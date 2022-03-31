@@ -11,6 +11,7 @@ Description: The class to load 2D and 3D face dataset
 import os.path as osp
 import numpy as np
 import torch
+import cv2
 from PIL import Image
 from torch.utils.data import Dataset
 from scipy.io import loadmat
@@ -53,12 +54,15 @@ class FaceDeep3DDataset(Face2D3DDataset):
             _type_: _description_
         """
         img_list, mouth_masked_img_list = [], []
+        face_mask_img_list = []
         
         for idx in range(start_idx, start_idx + self.fetch_length):
             ## Read the face image and resize
-            img_path = osp.join(self.data_root, video_dir, "face_image", f"{idx:06d}.jpg")
-            lm_path = osp.join(self.data_root, video_dir, "face_image", f"{idx:06d}.txt")
-            mouth_mask_path = osp.join(self.data_root, video_dir, "mouth_mask", f"{idx:06d}.png")
+            video_dir_path = osp.join(self.data_root, video_dir)
+            img_path = osp.join(video_dir_path, "face_image", f"{idx:06d}.jpg")
+            lm_path = osp.join(video_dir_path, "face_image", f"{idx:06d}.txt")
+            mouth_mask_path = osp.join(video_dir_path, "mouth_mask", f"{idx:06d}.png")
+            face_mask_path = osp.join(video_dir_path, "face_mask_224", f"{idx:06d}.png")
 
             raw_img = Image.open(img_path).convert('RGB')
             raw_mouth_msk = Image.open(mouth_mask_path).convert('RGB') if need_mouth_masked_img else None
@@ -66,20 +70,29 @@ class FaceDeep3DDataset(Face2D3DDataset):
 
             _, img, lm, msk, _ = align_img(raw_img, raw_lm, self.lm3d_std, raw_mouth_msk)
 
+            face_mask_img = cv2.imread(face_mask_path, cv2.IMREAD_UNCHANGED)[..., None] # (H, W, 1)
+
             if need_mouth_masked_img:
                 mouth_mask_img = self.image_transforms(msk)[:1, ...]
                 mouth_masked_img_list.append(mouth_mask_img)
             
             img = self.image_transforms(img)
             img_list.append(img)
+
+            face_mask_img = self.image_transforms(face_mask_img)
+            face_mask_img_list.append(face_mask_img)
         
         img_seq_tensor = torch.stack(img_list) # to (T, 3, H, W)
-
+        face_mask_img_tensor = torch.stack(face_mask_img_list) # to (T, 1, H, W)
+        
         if need_mouth_masked_img:
             mouth_masked_img_tensor =  torch.stack(mouth_masked_img_list)
-            return img_seq_tensor, mouth_masked_img_tensor
+            return {"gt_face_img": img_seq_tensor,
+                    'face_mask_img': face_mask_img_tensor,
+                    'mouth_mask_img': mouth_masked_img_tensor}
         else:
-            return img_seq_tensor
+            return {'gt_face_img': img_seq_tensor,
+                    'face_mask_img': face_mask_img_tensor}
 
     def __getitem__(self, index):
         main_idx, sub_idx = self._get_data(index)
@@ -108,7 +121,7 @@ class FaceDeep3DDataset(Face2D3DDataset):
             id_coeff=id_coeff, exp_coeff=gt_face_3d_params_arr)
         
         ## Get the 2D face image
-        gt_img_seq_tensor, gt_img_mouth_mask_tensor = self.read_image_sequence(
+        img_tensor_dict = self.read_image_sequence(
             choose_video, start_idx, need_mouth_masked_img=True)
 
         data_dict = {}
@@ -118,8 +131,9 @@ class FaceDeep3DDataset(Face2D3DDataset):
         data_dict['template'] = torch.FloatTensor(template_face.reshape((-1))) # (N,)
         data_dict['face_vertex'] = torch.FloatTensor(gt_face_3d_vertex)
         data_dict['video_name']  = choose_video
-        data_dict['gt_face_image'] = gt_img_seq_tensor # (fetch_length, 3, H, W)
-        data_dict['gt_mouth_mask_image'] = gt_img_mouth_mask_tensor # (fetch_length, 1, H, W)
+        data_dict['gt_face_image'] = img_tensor_dict['gt_face_img'] # (fetch_length, 3, H, W)
+        data_dict['gt_mouth_mask_image'] = img_tensor_dict['mouth_mask_img'] # (fetch_length, 1, H, W)
+        data_dict['gt_face_mask_image'] = img_tensor_dict['face_mask_img'] # (fetch_length, 1, H, W)
         data_dict['exp_base'] = torch.FloatTensor(self.facemodel.exp_base)
         
         if self.need_origin_face_3d_param:

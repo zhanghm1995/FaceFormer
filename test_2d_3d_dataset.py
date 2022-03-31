@@ -23,9 +23,11 @@ def test_2d_3d_dataset():
     dataset = next(iter(train_dataloader))
 
     print(dataset["gt_face_image"].shape)
+    face_mask_img = dataset['gt_face_mask_image']
+    print(face_mask_img.unique())
 
-    for i, dataset in tqdm(enumerate(train_dataloader)):
-        print(dataset["video_name"])
+    # for i, dataset in tqdm(enumerate(train_dataloader)):
+    #     print(dataset["video_name"])
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ import torch.nn as nn
 from scipy.io import wavfile
 from torch.nn import functional as F 
 import pytorch_lightning as pl
+from PIL import Image
 from .face_3dmm_one_hot_former import Face3DMMOneHotFormer
 from .nn import define_G, define_D
 from .losses import photo_loss, VGGLoss, GANLoss
@@ -87,7 +88,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
             batch, teacher_forcing=False, return_loss=False) # (B, S, 64)
         
         face_coeffs = batch['gt_face_origin_3d_params'] # (B, S, 257)
-        face_coeffs[:, :, 80:144] = pred_expression
+        # face_coeffs[:, :, 80:144] = pred_expression
         
         face_coeffs = face_coeffs.reshape((-1, 257)) # (B*S, 257)
 
@@ -97,6 +98,9 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
             self.facemodel.compute_for_render(face_coeffs)
         self.pred_mask, _, self.pred_face = self.face_renderer(
             self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
+        
+        gt_img = batch['gt_face_image'].reshape(self.pred_face.shape)
+        output_vis = self.pred_face * self.pred_mask + (1 - self.pred_mask) * gt_img
 
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
