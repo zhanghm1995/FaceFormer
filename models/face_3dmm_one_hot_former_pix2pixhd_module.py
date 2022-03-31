@@ -36,6 +36,11 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## Define the model
         self.face3dmmformer_model = Face3DMMOneHotFormer(config['Face3DMMFormer'])
 
+        if self.config.pretrained_expression_net is not None:
+            pretrained_parameters = torch.load(self.config.pretrained_expression_net)
+            self.face3dmmformer_model.load_state_dict(pretrained_parameters, strict=False)
+            print("[WARNING] load pretrained expression net!")
+
         self.mouth_mask_weight = self.face3dmmformer_model.mouth_mask_weight
 
         ## Define the Generator
@@ -102,6 +107,14 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         self.pred_mask, _, self.pred_face = self.face_renderer(
             self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
         
+        # output_vis = self.pred_face
+        # image_tensor = output_vis[0] # (3, 224, 224)
+        # image_numpy = image_tensor.clamp(0.0, 1.0).detach().cpu().float().numpy()
+        # image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
+        # image_numpy = image_numpy.astype(np.uint8)
+        # image_pil = Image.fromarray(image_numpy)
+        # image_pil.save("./debug.png")
+        
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
         
@@ -153,7 +166,13 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         ## FM loss
 
         loss_total = loss_dict['loss_3d'] + loss_dict['loss_photo'] + loss_dict['loss_G_GAN'] + loss_dict['loss_G_VGG']
-        self.log_dict(loss_dict, prog_bar=True)
+
+        self.log('Gen/loss_total', loss_total, on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log('Gen/loss_3d', loss_dict['loss_3d'], on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log('Gen/loss_photo', loss_dict['loss_photo'], on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log('Gen/loss_G_GAN', loss_dict['loss_G_GAN'], on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log('Gen/loss_G_VGG', loss_dict['loss_G_VGG'], on_step=True, on_epoch=True, prog_bar=True, batch_size=batch_size)
+
         return loss_total
 
     def discriminator_step(self, batch):
@@ -171,9 +190,10 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         loss_D_fake = self.criterionGAN(pred_fake, False)
 
         loss_D = 0.5 * (loss_D_real + loss_D_fake)
-        self.log('Disc/loss_D', loss_D, on_step=True, on_epoch=True)
-        self.log('Disc/loss_D_real', loss_D_real, on_step=True, on_epoch=True)
-        self.log('Disc/loss_D_fake', loss_D_fake, on_step=True, on_epoch=True)
+        batch_size = batch['raw_audio'].shape[0]
+        self.log('Disc/loss_D', loss_D, on_step=True, on_epoch=True, batch_size=batch_size)
+        self.log('Disc/loss_D_real', loss_D_real, on_step=True, on_epoch=True, batch_size=batch_size)
+        self.log('Disc/loss_D_fake', loss_D_fake, on_step=True, on_epoch=True, batch_size=batch_size)
         return loss_D
 
     def training_step(self, batch, batch_idx, optimizer_idx):

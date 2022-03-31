@@ -5,6 +5,7 @@ test_mode: False
 model_name: Face3DMMOneHotFormerPix2PixHDModule
 
 checkpoint: null
+pretrained_expression_net: work_dir/train_face_3dmm_expression_mouth_mask/lightning_logs/version_0/checkpoints_test/epoch=20-step=7643.ckpt
 
 max_epochs: 200
 check_val_every_n_epoch: 1

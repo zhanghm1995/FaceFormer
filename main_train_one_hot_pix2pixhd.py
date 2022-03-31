@@ -17,7 +17,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.plugins import DDPPlugin
 from utils.utils import get_git_commit_id
 from models import get_model
-
+# import warnings
+# warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 def parse_config():
     parser = argparse.ArgumentParser()
@@ -40,7 +41,9 @@ def parse_config():
     except:
         print("[WARNING] Couldn't get the git commit id")
     
+    print(f"{'-'*25} Options {'-'*25}")
     print(OmegaConf.to_yaml(config, resolve=True))
+    print(f"{'-'*25} End {'-'*25}")
 
     return config
 
