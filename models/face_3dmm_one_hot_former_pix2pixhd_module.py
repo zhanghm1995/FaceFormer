@@ -99,9 +99,6 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         self.pred_mask, _, self.pred_face = self.face_renderer(
             self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
         
-        gt_img = batch['gt_face_image'].reshape(self.pred_face.shape)
-        output_vis = self.pred_face * self.pred_mask + (1 - self.pred_mask) * gt_img
-
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
         

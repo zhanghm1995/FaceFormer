@@ -10,6 +10,8 @@ Description: Test the 2D 3D Dataset
 from omegaconf import OmegaConf
 from dataset import get_dataset
 from tqdm import tqdm
+from PIL import Image
+import numpy as np
 
 
 def test_2d_3d_dataset():
@@ -17,14 +19,26 @@ def test_2d_3d_dataset():
 
     dataset_config = config['dataset']
 
-    train_dataloader = get_dataset(dataset_config, split="voca_train", shuffle=True)
+    train_dataloader = get_dataset(dataset_config, split="voca_train", shuffle=False)
     print(len(train_dataloader))
 
     dataset = next(iter(train_dataloader))
+    print(dataset['video_name'])
 
     print(dataset["gt_face_image"].shape)
-    face_mask_img = dataset['gt_face_mask_image']
-    print(face_mask_img.unique())
+    masked_face_image = dataset['gt_masked_face_image'][0, 0] * 255.0
+    masked_face_image = masked_face_image.permute(1, 2, 0).numpy()
+
+    image_numpy = masked_face_image.astype(np.uint8)
+    image_pil = Image.fromarray(image_numpy)
+    image_pil.save("./example_masked_gt3.png")
+
+    masked_face_image = dataset['gt_face_image'][0, 0] * 255.0
+    masked_face_image = masked_face_image.permute(1, 2, 0).numpy()
+
+    image_numpy = masked_face_image.astype(np.uint8)
+    image_pil = Image.fromarray(image_numpy)
+    image_pil.save("./example_gt3.png")
 
     # for i, dataset in tqdm(enumerate(train_dataloader)):
     #     print(dataset["video_name"])

@@ -68,6 +68,9 @@ class FaceDeep3DDataset(Face2D3DDataset):
             raw_mouth_msk = Image.open(mouth_mask_path).convert('RGB') if need_mouth_masked_img else None
             raw_lm = np.loadtxt(lm_path).astype(np.float32)
 
+            W, H = raw_img.size
+            raw_lm = raw_lm.reshape([-1, 2])
+            raw_lm[:, -1] = H - 1 - raw_lm[:, -1]
             _, img, lm, msk, _ = align_img(raw_img, raw_lm, self.lm3d_std, raw_mouth_msk)
 
             face_mask_img = cv2.imread(face_mask_path, cv2.IMREAD_UNCHANGED)[..., None] # (H, W, 1)
@@ -134,10 +137,12 @@ class FaceDeep3DDataset(Face2D3DDataset):
         data_dict['gt_face_image'] = img_tensor_dict['gt_face_img'] # (fetch_length, 3, H, W)
         data_dict['gt_mouth_mask_image'] = img_tensor_dict['mouth_mask_img'] # (fetch_length, 1, H, W)
         data_dict['gt_face_mask_image'] = img_tensor_dict['face_mask_img'] # (fetch_length, 1, H, W)
+        data_dict['gt_masked_face_image'] = data_dict['gt_face_image'] * data_dict['gt_face_mask_image']
         data_dict['exp_base'] = torch.FloatTensor(self.facemodel.exp_base)
         
         if self.need_origin_face_3d_param:
             # (fetch_length, 257)
-            data_dict['gt_face_origin_3d_params'] = torch.from_numpy(gt_face_origin_3d_param.astype(np.float32))
+            data_dict['gt_face_origin_3d_params'] = \
+                torch.from_numpy(gt_face_origin_3d_param.astype(np.float32))
 
         return data_dict
