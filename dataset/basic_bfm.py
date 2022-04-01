@@ -19,10 +19,10 @@ class BFMModel(object):
         self.id_base = model['idBase'].astype(np.float32) # [3*N,80]
         self.exp_base = model['exBase'].astype(np.float32) # [3*N,64]
         self.key_point = np.squeeze(model['keypoints']).astype(np.int64) - 1
-        # if recenter:
-        #     mean_shape = self.mean_shape.reshape([-1, 3])
-        #     mean_shape = mean_shape - np.mean(mean_shape, axis=0, keepdims=True)
-        #     self.mean_shape = mean_shape.reshape([-1, 1])
+        if recenter:
+            mean_shape = self.mean_shape.reshape([-1, 3])
+            mean_shape = mean_shape - np.mean(mean_shape, axis=0, keepdims=True)
+            self.mean_shape = mean_shape.reshape([-1, 1])
 
     def compute_shape(self, id_coeff=None, exp_coeff=None):
         """Compute the complete 3D face shape

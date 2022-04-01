@@ -24,7 +24,7 @@ def parse_config():
     parser.add_argument('--cfg', type=str, default='./config/face_3dmm_expression_mouth_mask.yaml', help='the config file path')
     parser.add_argument('--gpu', type=int, nargs='+', default=(0, 1), help='specify gpu devices')
     parser.add_argument('--checkpoint_dir', type=str, nargs='?', const="work_dir2/debug")
-    parser.add_argument('--checkpoint', type=str, default="work_dir/train_face_3dmm_expression_mouth_mask/lightning_logs/version_0/checkpoints_test/epoch=73-step=26935.ckpt", help="the pretrained checkpoint path")
+    parser.add_argument('--checkpoint', type=str, default=None, help="the pretrained checkpoint path")
     parser.add_argument('--test_mode', action='store_true', help="whether is a test mode")
 
     args = parser.parse_args()
@@ -64,7 +64,7 @@ if not config['test_mode']:
 
     ## ======================= Training ======================= ##
     ## 1) Define the dataloader
-    train_dataloader = get_3dmm_dataset(config['dataset'], split="voca_train", shuffle=True)
+    train_dataloader = get_3dmm_dataset(config['dataset'], split="small_train", shuffle=True)
     print(f"The training dataloader length is {len(train_dataloader)}")
 
     # val_dataloader = get_3dmm_dataset(config['dataset'], split='voca_val', shuffle=False)

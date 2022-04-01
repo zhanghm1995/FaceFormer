@@ -154,10 +154,10 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         # image_pil = Image.fromarray(image_numpy)
         # image_pil.save("./debug.png")
 
-        save_image_array_to_video(self.pred_face[None, ...].detach(), 
-                                  "./debug",
-                                  name=self.current_epoch,
-                                  need_change_channel_order=True)
+        # save_image_array_to_video(self.pred_face[None, ...].detach(), 
+        #                           "./debug",
+        #                           name=self.current_epoch,
+        #                           need_change_channel_order=True)
         
         ## Forward the Generator network
         face_2d_img = self.face_generator(self.pred_face)
@@ -246,7 +246,7 @@ class Face3DMMOneHotFormerPix2PixHDModule(pl.LightningModule):
         if optimizer_idx == 1:
             loss = self.discriminator_step(batch)
         
-        if batch_idx % 1 == 0:
+        if batch_idx % 20 == 0:
             generate_image = self.model_output['generated_face'][None, ...].detach()
             save_dir = osp.join(self.logger.log_dir, "vis", f"epoch_{self.current_epoch:03d}")
             save_image_array_to_video(generate_image, 

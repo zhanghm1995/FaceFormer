@@ -73,7 +73,7 @@ class PeriodicPositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class Face3DMMOneHotFormer(pl.LightningModule):
+class Face3DMMOneHotFormer(nn.Module):
     def __init__(self, args, **kwargs):
         super().__init__()
         """
