@@ -149,10 +149,12 @@ class Face3DMMOneHotFormer(nn.Module):
                     vertice_input = self.PPE(style_emb)
                 else:
                     vertice_input = self.PPE(vertice_emb)
-                # tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
-                tgt_mask = None
+                tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=device)
+                # tgt_mask = None
 
-                memory_mask = enc_dec_mask(device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+                # memory_mask = enc_dec_mask(device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+                memory_mask = None
+
                 vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
                 vertice_out = self.vertice_map_r(vertice_out)
                 new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)

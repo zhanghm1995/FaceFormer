@@ -22,7 +22,7 @@ dataset:
   fetch_stride: 100
   number_workers: 6
 
-teacher_forcing: false
+teacher_forcing: False
 
 Face3DMMFormer:
   dataset: vocaset

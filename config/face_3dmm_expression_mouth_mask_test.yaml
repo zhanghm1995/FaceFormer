@@ -18,11 +18,11 @@ dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_preprocessed
   batch_size: 1
-  fetch_length: 250
-  fetch_stride: 250
-  audio_path: data/HDTF_preprocessed/WDA_KathyCastor_000/WDA_KathyCastor_000.wav
-  video_name: WDA_MartinHeinrich_000
-  training_split: voca_train
+  fetch_length: 600
+  fetch_stride: 600
+  audio_path: data/HDTF_preprocessed/WRA_LynnJenkins_000/WRA_LynnJenkins_000.wav
+  video_name: WDA_BettyMcCollum_000
+  training_split: small_train
   number_workers: 6
 
 teacher_forcing: false
