@@ -1,6 +1,6 @@
 ## Refer to the FaceFormer to predict the expression parameters
 checkpoint_dir: work_dir/train_face_3dmm_expression_mouth_mask_paper
-test_mode: True
+test_mode: False
 
 model_name: Face3DMMOneHotFormer
 
@@ -18,16 +18,11 @@ dataset:
   dataset_name: Face3DMMOneHotDataset
   data_root: ./data/HDTF_face3dmmformer
   batch_size: 1
-  fetch_length: 600
-  fetch_stride: 600
-  # audio_path: /home/haimingzhang/Research/Programming/cv-fighter/Cheat-Sheet-For-FFmpeg/data/remember_me.wav
-  # audio_path: data/HDTF_preprocessed/WRA_JoniErnst1_000/WRA_JoniErnst1_000.wav
-  audio_path: data/HDTF_face3dmmformer/val/WDA_ChrisVanHollen1_000/WDA_ChrisVanHollen1_000.wav
-  video_name: train/WDA_ChrisVanHollen1_000
-  training_split: small_train
+  fetch_length: 100
+  fetch_stride: 100
   number_workers: 6
 
-teacher_forcing: false
+teacher_forcing: False
 
 Face3DMMFormer:
   dataset: vocaset

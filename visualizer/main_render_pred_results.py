@@ -192,6 +192,8 @@ def vis_rendered_face_list(args, data_root: str, output_root=None, need_pose=Tru
     import render_utils
     from easydict import EasyDict
 
+    assert osp.exists(data_root), f'{data_root} does not exist.'
+
     if need_pose:
         opt = EasyDict(center=112.0, focal=1015.0, z_near=5.0, z_far=15.0)
     else:

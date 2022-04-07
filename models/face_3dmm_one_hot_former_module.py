@@ -84,7 +84,12 @@ class Face3DMMOneHotFormerModule(pl.LightningModule):
         
         ## Save the results
         save_dir = osp.join(self.logger.log_dir, "vis")
-        os.makedirs(save_dir, exist_ok=True)
+        if "/" in video_name:
+            folder = video_name.split("/")[0]
+            os.makedirs(osp.join(save_dir, folder), exist_ok=True)
+        else:
+            os.makedirs(save_dir, exist_ok=True)
+        
         # np.savez(osp.join(save_dir, f"{batch_idx:03d}.npz"), face=model_output)
         np.save(osp.join(save_dir, f"{video_name}_{batch_idx:03d}.npy"), model_output) # save face vertex
 

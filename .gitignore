@@ -14,7 +14,7 @@ demo/output
 demo/result
 work_dir
 data/big_mouth_mask.npy
-
+testing
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
